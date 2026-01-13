@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../components/Sidebar'; // Red line should disappear once Sidebar.jsx exists
+import Sidebar from '../components/Sidebar'; //updated Sidebar
 import Navbar from '../components/Navbar';
 
 const Home = () => {
   const [products, setProducts] = useState([]);
-  const [activeTab, setActiveTab] = useState('Unpublished'); // Default to Unpublished per goal
+  const [activeTab, setActiveTab] = useState('Unpublished'); // Default to Unpublished 
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 

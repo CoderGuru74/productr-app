@@ -1,8 +1,19 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import logo from '../assets/Frame 4.png'; // Verify this path matches your logo location
+import logo from '../assets/Frame 4.png'; 
 
 const Sidebar = () => {
+
+  /**
+   * handleLogout
+   * Clears the user session and forces a full page refresh to 
+   * ensure the Sidebar disappears immediately.
+   */
+  const handleLogout = () => {
+    localStorage.removeItem('userEmail'); // Clear session
+    window.location.assign('/login-otp'); // Force refresh and redirect
+  };
+
   return (
     <aside className="fixed inset-y-0 left-0 w-64 bg-[#1E2129] text-white flex flex-col p-4 z-[100] shadow-2xl">
       {/* Productr Branding */}
@@ -27,7 +38,7 @@ const Sidebar = () => {
       </div>
 
       {/* Navigation Links */}
-      <nav className="space-y-1">
+      <nav className="flex-1 space-y-1">
         <NavLink 
           to="/" 
           className={({ isActive }) => 
@@ -60,8 +71,21 @@ const Sidebar = () => {
           Products
         </NavLink>
       </nav>
+
+      {/* Logout Button Section */}
+      <div className="mt-auto border-t border-gray-700 pt-4 pb-2">
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all text-[13px] font-bold"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Logout
+        </button>
+      </div>
     </aside>
   );
 };
 
-export default Sidebar; // CRITICAL: This line removes the red underline in Home.jsx
+export default Sidebar;

@@ -1,56 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import loginImage from '../assets/Frame 2.png';
 import logo from '../assets/Frame 4.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(1); // Step 1: Email, Step 2: OTP
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); // Array for 6-digit grid
+  const [step, setStep] = useState(1); 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(''); 
   const navigate = useNavigate();
+  const inputRefs = useRef([]);
 
-  // Handle requesting the OTP (Sign Up / Login)
+  // Auto-focus logic for the 6-digit OTP grid
+  const handleOtpChange = (value, index) => {
+    if (isNaN(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    setError(''); 
+
+    if (value !== '' && index < 5) {
+      inputRefs.current[index + 1].focus();
+    }
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1].focus();
+    }
+  };
+
   const handleRequestOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     try {
       const response = await fetch('http://localhost:5000/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      const data = await response.json();
       if (response.ok) {
         setStep(2);
       } else {
-        alert(data.message || "Failed to send OTP");
+        const data = await response.json();
+        setError(data.error || "Failed to send OTP");
       }
     } catch (err) {
-      alert("Error connecting to server. Is your backend running on port 5000?");
+      setError("Error connecting to server.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle verifying the OTP
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
+    const enteredOtp = otp.join('');
     try {
       const response = await fetch('http://localhost:5000/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email, otp: enteredOtp }),
       });
+
       const data = await response.json();
-      if (data.success) {
-        navigate('/home'); // Redirect to Dashboard on success
+
+      if (response.ok) {
+        // 1. SAVE to localStorage so App.jsx knows you are logged in
+        localStorage.setItem('userEmail', email);
+        
+        // 2. FORCE REFRESH to root so App.jsx state resets and shows Sidebar
+        window.location.assign('/'); 
       } else {
-        alert(data.message || "Invalid OTP");
+        setError(data.error || "Invalid OTP");
       }
     } catch (err) {
-      alert("Verification failed. Please try again.");
+      setError("Verification failed.");
     } finally {
       setLoading(false);
     }
@@ -62,39 +89,27 @@ const Login = () => {
         
         {/* LEFT SIDE: Image Section with Logo Overlay */}
         <div className="w-full md:w-1/2 h-full p-4 md:p-8 flex items-center justify-center">
-          <div className="w-full h-full rounded-[40px] overflow-hidden relative">
-            
+          <div className="w-full h-full rounded-[40px] overflow-hidden relative border border-slate-100 shadow-sm">
             {/* LOGO Overlay */}
             <div className="absolute top-8 left-8 z-10">
-              <img 
-                src={logo} 
-                alt="Productr Logo" 
-                className="h-8 md:h-10 object-contain" 
-              />
+              <img src={logo} alt="Productr Logo" className="h-8 md:h-10 object-contain" />
             </div>
-
             {/* MAIN BRANDING IMAGE */}
-            <img 
-              src={loginImage} 
-              alt="Branding" 
-              className="w-full h-full object-cover"
-            />
+            <img src={loginImage} alt="Branding" className="w-full h-full object-cover" />
           </div>
         </div>
 
         {/* RIGHT SIDE: Form Section */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center px-10 md:px-20">
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center px-10 md:px-20 relative bg-white">
           <div className="w-full max-w-[460px]">
-            {/* Heading stays on one line */}
-            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 whitespace-nowrap">
+            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 whitespace-nowrap text-left">
               {step === 1 ? "Login to your Productr Account" : "Verify Your Email"}
             </h2>
             
-            <form onSubmit={step === 1 ? handleRequestOtp : handleVerifyOtp} className="space-y-6">
+            <form onSubmit={step === 1 ? handleRequestOtp : handleVerifyOtp} className="space-y-8">
               {step === 1 ? (
-                /* EMAIL INPUT STEP */
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-[13px] font-bold text-gray-700 uppercase tracking-wide">
                     Email or Phone number
                   </label>
                   <input 
@@ -102,58 +117,53 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter email or phone number"
-                    className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-50 transition-all placeholder-gray-300"
+                    className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-200 transition-all placeholder:text-gray-300 text-[15px]"
                     required
                   />
                 </div>
               ) : (
-                /* OTP INPUT STEP */
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-                    Enter the 6-digit code sent to {email}
+                <div className="space-y-4">
+                  <label className="block text-[13px] font-bold text-gray-700 uppercase tracking-wide text-center">
+                    Enter the code sent to {email}
                   </label>
-                  <input 
-                    type="text" 
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    placeholder="0 0 0 0 0 0"
-                    maxLength="6"
-                    className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-50 transition-all placeholder-gray-300 text-center text-2xl tracking-[0.5em] font-bold"
-                    required
-                  />
+                  <div className="flex justify-between gap-2">
+                    {otp.map((digit, index) => (
+                      <input
+                        key={index}
+                        type="text"
+                        maxLength="1"
+                        ref={el => inputRefs.current[index] = el}
+                        className={`w-12 h-14 border-2 rounded-xl text-center font-bold text-xl outline-none transition-all ${
+                          error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#000066]'
+                        }`}
+                        value={digit}
+                        onChange={(e) => handleOtpChange(e.target.value, index)}
+                        onKeyDown={(e) => handleKeyDown(e, index)}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
               
+              {error && <p className="text-red-500 text-xs font-bold text-center mt-2">{error}</p>}
+
               <button 
+                type="submit"
                 disabled={loading}
-                className="w-full bg-[#000066] text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-900 transition-all shadow-md disabled:bg-gray-400"
+                className="w-full bg-[#000066] text-white py-4 rounded-xl font-bold text-[16px] shadow-lg hover:bg-[#00004d] transition-all active:scale-[0.98] disabled:bg-gray-300"
               >
                 {loading ? "Processing..." : step === 1 ? "Get OTP" : "Verify & Login"}
               </button>
-
-              {step === 2 && (
-                <button 
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="w-full text-sm text-gray-500 hover:text-[#000066] mt-2"
-                >
-                  Change Email
-                </button>
-              )}
             </form>
 
             {/* Bottom Section: SignUp Link */}
-            <div className="mt-24 border-2 border-dashed border-gray-100 rounded-[24px] p-8 text-center bg-gray-50/30">
-              <p className="text-gray-400 text-sm font-medium">
-                Don't have a Productr Account?
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-[380px] border border-gray-100 rounded-[20px] p-5 text-center bg-gray-50/40">
+              <p className="text-gray-400 text-[13px] font-medium">
+                Don't have a Productr Account? <button type="button" className="text-[#000066] font-extrabold ml-1 hover:underline">SignUp Here</button>
               </p>
-              <button className="text-[#000066] font-extrabold text-lg mt-1 hover:underline">
-                SignUp Here
-              </button>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

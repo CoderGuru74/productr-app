@@ -1,31 +1,35 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
 import Products from './pages/Products';
-import LoginOTP from './pages/LoginOTP';
+import Login from './pages/Login';
 
 /**
- * AppLayout Wrapper
- * Controls the visibility of the Sidebar and manages the main content layout.
- * Ensures the 'ml-64' (margin-left) is only applied when the Sidebar is visible.
+ * ProtectedRoute Component
+ * This now checks localStorage every time the route is accessed.
  */
-const AppLayout = ({ children }) => {
+const ProtectedRoute = ({ children }) => {
+  const isAuthenticated = !!localStorage.getItem('userEmail');
+  // If not logged in, send them to login page
+  return isAuthenticated ? children : <Navigate to="/login-otp" replace />;
+};
+
+/**
+ * LayoutWrapper Component
+ * Handles the conditional rendering of the Sidebar based on current state.
+ */
+const LayoutWrapper = ({ children }) => {
   const location = useLocation();
-  
-  // The Sidebar should be hidden on the Login page for a professional look
+  const isAuthenticated = !!localStorage.getItem('userEmail');
   const isLoginPage = location.pathname === '/login-otp';
 
   return (
-    <div className="flex h-screen w-full bg-[#F0F2F5] overflow-hidden font-sans">
-      {/* 1. Show Sidebar only if NOT on the login page */}
-      {!isLoginPage && <Sidebar />}
+    <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden">
+      {/* Sidebar only shows if user is logged in AND not on login page */}
+      {isAuthenticated && !isLoginPage && <Sidebar />}
       
-      {/* 2. Main Content Container
-          If sidebar is hidden, we remove the margin (ml-0).
-          If sidebar is visible, we push content (ml-64) to prevent covering.
-      */}
-      <div className={`flex-1 flex flex-col h-full overflow-hidden ${isLoginPage ? 'ml-0' : 'ml-0'}`}>
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {children}
       </div>
     </div>
@@ -35,18 +39,33 @@ const AppLayout = ({ children }) => {
 function App() {
   return (
     <Router>
-      <AppLayout>
+      <LayoutWrapper>
         <Routes>
-          {/* Dashboard Home Route */}
-          <Route path="/" element={<Home />} />
+          {/* Public Route */}
+          <Route path="/login-otp" element={<Login />} />
           
-          {/* Products Management Route */}
-          <Route path="/products" element={<Products />} />
-          
-          {/* Functional OTP Login Route */}
-          <Route path="/login-otp" element={<LoginOTP />} />
+          {/* Protected Routes */}
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/products" 
+            element={
+              <ProtectedRoute>
+                <Products />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </AppLayout>
+      </LayoutWrapper>
     </Router>
   );
 }

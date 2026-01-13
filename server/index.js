@@ -1,3 +1,4 @@
+require('dotenv').config(); // Load variables from .env
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
@@ -14,7 +15,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
 
 // 2. MONGODB ATLAS CONNECTION
-const mongoURI = "mongodb+srv://pixel_node:Pixelnode7488%40@cluster0.uuq92lo.mongodb.net/productrDB?retryWrites=true&w=majority&appName=Cluster0";
+// Using variable from .env
+const mongoURI = process.env.MONGO_URI;
 
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
@@ -48,12 +50,13 @@ let otpStore = {};
 
 /**
  * 6. NODEMAILER CONFIGURATION
+ * Using variables from .env
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'pixelnodeofficial@gmail.com',
-    pass: 'vyjh miom jzjb xrvz' 
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -114,7 +117,6 @@ app.delete('/products/:id', async (req, res) => {
 
 /**
  * POST: Send OTP
- * Generates a 6-digit code and sends it via email.
  */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -125,7 +127,7 @@ app.post('/send-otp', async (req, res) => {
     console.log(`📨 OTP generated for ${email}: ${otp}`);
 
     await transporter.sendMail({
-      from: 'pixelnodeofficial@gmail.com',
+      from: process.env.EMAIL_USER, // Using variable from .env
       to: email,
       subject: 'Productr OTP Code',
       text: `Your login code is ${otp}`
@@ -139,17 +141,15 @@ app.post('/send-otp', async (req, res) => {
 
 /**
  * POST: Verify OTP
- * Compares entered code with stored code using String conversion to avoid mismatches.
  */
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
   
   console.log(`🔍 Verifying: ${email} | Stored: ${otpStore[email]} | Received: ${otp}`);
 
-  // String conversion ensures comparison works even if one is a number
   if (otpStore[email] && String(otpStore[email]) === String(otp)) {
     console.log("✅ OTP Verified Successfully");
-    delete otpStore[email]; // Clear OTP after use
+    delete otpStore[email]; 
     res.status(200).json({ message: "Login successful" });
   } else {
     console.log("❌ Invalid OTP Attempt");
@@ -157,4 +157,6 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log('🚀 Server is running on http://localhost:5000'));
+// Using dynamic port for deployment
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));

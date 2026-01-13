@@ -5,10 +5,10 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [userEmail, setUserEmail] = useState("Guest"); // Default state
+  const [userEmail, setUserEmail] = useState("Guest"); 
   const profileRef = useRef(null);
 
-  // 1. Fetch the actual logged-in email from localStorage
+  // Fetch the actual logged-in email from localStorage on mount
   useEffect(() => {
     const savedEmail = localStorage.getItem('userEmail');
     if (savedEmail) {
@@ -31,10 +31,17 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  /**
+   * handleLogout
+   * Clears the session and forces a full page refresh.
+   * This is critical to ensure the Sidebar disappears immediately.
+   */
   const handleLogout = () => {
     localStorage.removeItem('userEmail'); // Clear the session
     setShowProfileMenu(false);
-    navigate('/login-otp');
+    
+    // FORCE REDIRECT: Refreshes the app to ensure Sidebar state is reset
+    window.location.assign('/login-otp'); 
   };
 
   return (
@@ -80,7 +87,6 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
             <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 shadow-2xl rounded-xl p-2 z-[999]">
               <div className="px-3 py-2 border-b border-slate-50 mb-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Signed in as</p>
-                {/* 2. DISPLAY THE DYNAMIC EMAIL */}
                 <p className="text-xs font-semibold text-slate-700 truncate">{userEmail}</p>
               </div>
               <button 
