@@ -1,4 +1,4 @@
-require('dotenv').config(); // Load variables from .env
+require('dotenv').config(); 
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
@@ -7,24 +7,24 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. CORS & PAYLOAD CONFIGURATION
- * High limits are essential for Base64 image strings.
- * The 'origin' allows your live Vercel app to talk to this backend.
+ * 1. CORS CONFIGURATION
+ * Using origin: true is the safest way to allow your Vercel frontend 
+ * to communicate with this Render backend dynamically.
  */
 app.use(cors({
-  origin: [
-    "https://productr-app.vercel.app", // REPLACE this with your actual Vercel URL
-    "http://localhost:3000"           // Keep for local development
-  ],
-  credentials: true
+  origin: true, 
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-app.use(express.json({ limit: '50mb' })); // Allow large image data
+
+
+app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 2. MONGODB ATLAS CONNECTION
 const mongoURI = process.env.MONGO_URI;
-
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
@@ -52,7 +52,7 @@ const User = mongoose.model('User', new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }));
 
-// 5. OTP Storage (Temporary memory)
+// 5. OTP Storage
 let otpStore = {}; 
 
 /**
@@ -73,10 +73,9 @@ app.post('/products', async (req, res) => {
   try {
     const newProduct = new Product(req.body); 
     const savedProduct = await newProduct.save();
-    console.log("✨ Product Created:", savedProduct.name);
     res.status(201).json(savedProduct);
   } catch (error) {
-    res.status(500).json({ error: "Failed to create product", details: error.message });
+    res.status(500).json({ error: "Failed to create product" });
   }
 });
 
@@ -100,7 +99,7 @@ app.put('/products/:id', async (req, res) => {
   }
 });
 
-// Toggle Status (Publish/Unpublish)
+// Toggle Status
 app.patch('/products/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
@@ -123,6 +122,7 @@ app.delete('/products/:id', async (req, res) => {
 
 /**
  * POST: Send OTP
+ * ADDED: success: true to ensure frontend proceeds to step 2.
  */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -138,32 +138,27 @@ app.post('/send-otp', async (req, res) => {
       subject: 'Productr OTP Code',
       text: `Your login code is ${otp}`
     });
-    res.status(200).json({ message: "OTP sent" });
+    // Ensure success: true is present
+    res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
     console.error("❌ Email Error:", error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 /**
  * POST: Verify OTP
- * UPDATED: Includes 'success: true' to match frontend Login.jsx logic.
  */
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
   
-  console.log(`🔍 Verifying: ${email} | Stored: ${otpStore[email]} | Received: ${otp}`);
-
   if (otpStore[email] && String(otpStore[email]) === String(otp)) {
-    console.log("✅ OTP Verified Successfully");
     delete otpStore[email]; 
     res.status(200).json({ success: true, message: "Login successful" });
   } else {
-    console.log("❌ Invalid OTP Attempt");
     res.status(400).json({ success: false, error: "Please enter a valid OTP" });
   }
 });
 
-// Dynamic port for Render deployment
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
