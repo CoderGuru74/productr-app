@@ -7,29 +7,36 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. CORS CONFIGURATION
- * Using origin: true is the safest way to allow your Vercel frontend 
- * to communicate with this Render backend dynamically.
+ * 1. BULLETPROOF CORS CONFIGURATION
+ * This allows your Vercel frontend to communicate with Render.
+ * app.options('*') handles the "preflight" check that was causing your 404/CORS error.
  */
 app.use(cors({
-  origin: true, 
+  origin: [
+    "https://productr-app.vercel.app", 
+    "http://localhost:3000"
+  ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
+app.options('*', cors()); // Enable pre-flight for all routes
 
 
-app.use(express.json({ limit: '50mb' })); 
+
+// Payload limits for Base64 images
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 2. MONGODB ATLAS CONNECTION
 const mongoURI = process.env.MONGO_URI;
+
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
-// 3. PRODUCT SCHEMA
+// 3. SCHEMAS
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, default: 'Foods' },
@@ -46,17 +53,11 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 
-// 4. USER SCHEMA
-const User = mongoose.model('User', new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  createdAt: { type: Date, default: Date.now }
-}));
-
-// 5. OTP Storage
+// 4. OTP Storage (Temporary memory)
 let otpStore = {}; 
 
 /**
- * 6. NODEMAILER CONFIGURATION
+ * 5. NODEMAILER CONFIGURATION
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -67,6 +68,50 @@ const transporter = nodemailer.createTransport({
 });
 
 // --- API ROUTES ---
+
+/**
+ * POST: Send OTP
+ * We add { success: true } so the frontend knows to move to Step 2.
+ */
+app.post('/send-otp', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    otpStore[email] = otp;
+    
+    console.log(`📨 OTP generated for ${email}: ${otp}`);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Productr OTP Code',
+      text: `Your login code is ${otp}`
+    });
+    
+    res.status(200).json({ success: true, message: "OTP sent" });
+  } catch (error) {
+    console.error("❌ Email Error:", error.message);
+    res.status(500).json({ success: false, error: "Failed to send email. Check backend logs." });
+  }
+});
+
+/**
+ * POST: Verify OTP
+ */
+app.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  
+  console.log(`🔍 Verifying: ${email} | Stored: ${otpStore[email]} | Received: ${otp}`);
+
+  if (otpStore[email] && String(otpStore[email]) === String(otp)) {
+    console.log("✅ OTP Verified Successfully");
+    delete otpStore[email]; 
+    res.status(200).json({ success: true, message: "Login successful" });
+  } else {
+    console.log("❌ Invalid OTP Attempt");
+    res.status(400).json({ success: false, error: "Please enter a valid OTP" });
+  }
+});
 
 // Create Product
 app.post('/products', async (req, res) => {
@@ -99,7 +144,7 @@ app.put('/products/:id', async (req, res) => {
   }
 });
 
-// Toggle Status
+// Toggle Status (Publish/Unpublish)
 app.patch('/products/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
@@ -120,45 +165,6 @@ app.delete('/products/:id', async (req, res) => {
   }
 });
 
-/**
- * POST: Send OTP
- * ADDED: success: true to ensure frontend proceeds to step 2.
- */
-app.post('/send-otp', async (req, res) => {
-  const { email } = req.body;
-  try {
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    otpStore[email] = otp;
-    
-    console.log(`📨 OTP generated for ${email}: ${otp}`);
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Productr OTP Code',
-      text: `Your login code is ${otp}`
-    });
-    // Ensure success: true is present
-    res.status(200).json({ success: true, message: "OTP sent" });
-  } catch (error) {
-    console.error("❌ Email Error:", error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * POST: Verify OTP
- */
-app.post('/verify-otp', async (req, res) => {
-  const { email, otp } = req.body;
-  
-  if (otpStore[email] && String(otpStore[email]) === String(otp)) {
-    delete otpStore[email]; 
-    res.status(200).json({ success: true, message: "Login successful" });
-  } else {
-    res.status(400).json({ success: false, error: "Please enter a valid OTP" });
-  }
-});
-
+// 6. START SERVER
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
