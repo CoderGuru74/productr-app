@@ -1,18 +1,24 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Login from './pages/Login';
+import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
+import Products from './pages/Products';
 
 function App() {
   return (
     <Router>
-      <Routes>
-        {/* This is the first page people see */}
-        <Route path="/" element={<Login />} />
+      <div className="flex h-screen w-full bg-[#F0F2F5] overflow-hidden">
+        {/* The Sidebar is placed outside Routes so it never reloads */}
+        <Sidebar />
         
-        {/* This is where they go after logging in */}
-        <Route path="/home" element={<Home />} />
-      </Routes>
+        {/* The Right Side Content changes based on the URL */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Products />} />
+          </Routes>
+        </div>
+      </div>
     </Router>
   );
 }
