@@ -1,36 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import promoImg from '../assets/Frame 2.png';
+import loginImage from '../assets/Frame 2.png';
+import logo from '../assets/Frame 4.png';
 
-const LoginOTP = () => {
+const Login = () => {
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']); 
-  const [step, setStep] = useState(1); // 1: Email Entry, 2: OTP Entry
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState(1); // Step 1: Email, Step 2: OTP
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(''); 
   const navigate = useNavigate();
-  const inputRefs = useRef([]);
 
-  // Auto-focus logic for 6-digit grid
-  const handleOtpChange = (value, index) => {
-    if (isNaN(value)) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    setError(''); 
-
-    if (value !== '' && index < 5) {
-      inputRefs.current[index + 1].focus();
-    }
-  };
-
-  const handleKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1].focus();
-    }
-  };
-
-  const handleSendOTP = async (e) => {
+  // Handle requesting the OTP (Sign Up / Login)
+  const handleRequestOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -39,144 +20,143 @@ const LoginOTP = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
+      const data = await response.json();
       if (response.ok) {
-        setStep(2); 
+        setStep(2);
+      } else {
+        alert(data.message || "Failed to send OTP");
       }
     } catch (err) {
-      console.error(err);
+      alert("Error connecting to server. Is your backend running on port 5000?");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (e) => {
+  // Handle verifying the OTP
+  const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    setError(''); 
-    const enteredOtp = otp.join('');
-
-    if (enteredOtp.length < 6) {
-      setError("Please enter a valid OTP");
-      return;
-    }
-
+    setLoading(true);
     try {
       const response = await fetch('http://localhost:5000/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, otp: enteredOtp }),
+        body: JSON.stringify({ email, otp }),
       });
-
       const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('userEmail', email);
-        navigate('/'); 
+      if (data.success) {
+        navigate('/home'); // Redirect to Dashboard on success
       } else {
-        setError(data.error || "Please enter a valid OTP");
+        alert(data.message || "Invalid OTP");
       }
     } catch (err) {
-      setError("Connection error. Is your server running?");
+      alert("Verification failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] flex items-center justify-center p-4 font-sans">
-      <div className="bg-white rounded-[40px] shadow-2xl flex flex-col md:flex-row w-full max-w-[1100px] h-[720px] overflow-hidden border border-slate-100">
+    <div className="min-h-screen bg-white flex items-center justify-center font-sans overflow-hidden">
+      <div className="w-full h-screen flex flex-col md:flex-row">
         
-        {/* LEFT PANEL: PROMOTIONAL IMAGE */}
-        <div className="hidden md:block w-1/2 p-6 h-full">
-          <div className="relative w-full h-full rounded-[35px] overflow-hidden">
-            <img src={promoImg} alt="Promo" className="absolute inset-0 w-full h-full object-cover" />
+        {/* LEFT SIDE: Image Section with Logo Overlay */}
+        <div className="w-full md:w-1/2 h-full p-4 md:p-8 flex items-center justify-center">
+          <div className="w-full h-full rounded-[40px] overflow-hidden relative">
+            
+            {/* LOGO Overlay */}
+            <div className="absolute top-8 left-8 z-10">
+              <img 
+                src={logo} 
+                alt="Productr Logo" 
+                className="h-8 md:h-10 object-contain" 
+              />
+            </div>
+
+            {/* MAIN BRANDING IMAGE */}
+            <img 
+              src={loginImage} 
+              alt="Branding" 
+              className="w-full h-full object-cover"
+            />
           </div>
         </div>
 
-        {/* RIGHT PANEL: AUTHENTICATION */}
-        <div className="flex-1 flex flex-col justify-center px-10 md:px-16 relative bg-white">
-          <div className="w-full max-w-sm mx-auto">
-            {/* FIXED HEADING: Now stays on one line */}
-            <h2 className="text-[24px] font-bold text-[#001D4D] mb-10 tracking-tight whitespace-nowrap">
-              Login to your Productr Account
+        {/* RIGHT SIDE: Form Section */}
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center px-10 md:px-20">
+          <div className="w-full max-w-[460px]">
+            {/* Heading stays on one line */}
+            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 whitespace-nowrap">
+              {step === 1 ? "Login to your Productr Account" : "Verify Your Email"}
             </h2>
-
-            {step === 1 ? (
-              /* STEP 1: EMAIL ENTRY */
-              <form onSubmit={handleSendOTP} className="space-y-8">
-                <div className="space-y-3">
-                  <label className="text-[11px] font-bold text-slate-800 uppercase tracking-[1px]">
+            
+            <form onSubmit={step === 1 ? handleRequestOtp : handleVerifyOtp} className="space-y-6">
+              {step === 1 ? (
+                /* EMAIL INPUT STEP */
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Email or Phone number
                   </label>
                   <input 
                     type="email" 
-                    required
-                    placeholder="Enter email or phone number" 
-                    className="w-full p-4 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#00147B] transition-all"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter email or phone number"
+                    className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-50 transition-all placeholder-gray-300"
+                    required
                   />
                 </div>
-                <button 
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#00147B] text-white py-4.5 rounded-xl font-bold text-sm shadow-xl active:scale-[0.98] transition-all disabled:opacity-50"
-                >
-                  {loading ? "Sending..." : "Login"}
-                </button>
-              </form>
-            ) : (
-              /* STEP 2: OTP ENTRY */
-              <form onSubmit={handleVerifyOTP} className="space-y-10">
-                <div className="space-y-4">
-                  <label className="text-[11px] font-bold text-slate-800 uppercase tracking-[1px]">
-                    Enter OTP
+              ) : (
+                /* OTP INPUT STEP */
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+                    Enter the 6-digit code sent to {email}
                   </label>
-                  <div className="flex justify-between gap-2.5">
-                    {otp.map((digit, index) => (
-                      <input
-                        key={index}
-                        type="text"
-                        maxLength="1"
-                        ref={el => inputRefs.current[index] = el}
-                        className={`w-12 h-12 md:w-14 md:h-14 border-2 rounded-xl text-center font-bold text-xl outline-none transition-all ${
-                          error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-[#00147B]'
-                        }`}
-                        value={digit}
-                        onChange={(e) => handleOtpChange(e.target.value, index)}
-                        onKeyDown={(e) => handleKeyDown(e, index)}
-                      />
-                    ))}
-                  </div>
-                  {/* RED ERROR MESSAGE */}
-                  {error && (
-                    <p className="text-red-500 text-[11px] font-bold mt-2">
-                      {error}
-                    </p>
-                  )}
+                  <input 
+                    type="text" 
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="0 0 0 0 0 0"
+                    maxLength="6"
+                    className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-50 transition-all placeholder-gray-300 text-center text-2xl tracking-[0.5em] font-bold"
+                    required
+                  />
                 </div>
-                <button 
-                  type="submit"
-                  className="w-full bg-[#00147B] text-white py-4.5 rounded-xl font-bold text-sm shadow-xl active:scale-[0.98] transition-all"
-                >
-                  Enter your OTP
-                </button>
-                <p className="text-center text-[12px] text-slate-400 font-semibold">
-                  Didn't receive OTP? <button type="button" onClick={() => setStep(1)} className="text-[#00147B] font-bold ml-1">Resend in 20s</button>
-                </p>
-              </form>
-            )}
-          </div>
+              )}
+              
+              <button 
+                disabled={loading}
+                className="w-full bg-[#000066] text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-900 transition-all shadow-md disabled:bg-gray-400"
+              >
+                {loading ? "Processing..." : step === 1 ? "Get OTP" : "Verify & Login"}
+              </button>
 
-          {step === 1 && (
-            <div className="absolute bottom-12 left-0 right-0 flex justify-center px-10">
-              <div className="w-full max-w-[340px] border border-slate-100 rounded-2xl py-4.5 text-center bg-slate-50/50 text-[13px]">
-                <span className="text-slate-400">Don't have a Productr Account? </span>
-                <button className="text-[#00147B] font-extrabold ml-1 hover:underline">SignUp Here</button>
-              </div>
+              {step === 2 && (
+                <button 
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="w-full text-sm text-gray-500 hover:text-[#000066] mt-2"
+                >
+                  Change Email
+                </button>
+              )}
+            </form>
+
+            {/* Bottom Section: SignUp Link */}
+            <div className="mt-24 border-2 border-dashed border-gray-100 rounded-[24px] p-8 text-center bg-gray-50/30">
+              <p className="text-gray-400 text-sm font-medium">
+                Don't have a Productr Account?
+              </p>
+              <button className="text-[#000066] font-extrabold text-lg mt-1 hover:underline">
+                SignUp Here
+              </button>
             </div>
-          )}
+          </div>
         </div>
+
       </div>
     </div>
   );
 };
 
-export default LoginOTP;
+export default Login;
