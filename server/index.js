@@ -7,8 +7,7 @@ const app = express();
 
 /**
  * 1. PAYLOAD CONFIGURATION
- * High limits are essential for Base64 image strings to prevent 
- * "offset out of range" or 500 Internal Server Errors.
+ * High limits are essential for Base64 image strings.
  */
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -30,8 +29,8 @@ const productSchema = new mongoose.Schema({
   sellingPrice: { type: String, default: '' },
   brandName: { type: String, default: '' },
   isReturnable: { type: String, default: 'Yes' },
-  images: { type: [String], default: [] }, // Array for multiple photos
-  status: { type: String, default: 'Published' }, // 'Published' or 'Unpublished'
+  images: { type: [String], default: [] }, 
+  status: { type: String, default: 'Published' }, 
   userEmail: { type: String, required: true },
   createdAt: { type: Date, default: Date.now }
 });
@@ -49,7 +48,6 @@ let otpStore = {};
 
 /**
  * 6. NODEMAILER CONFIGURATION
- * Updated sender to pixelnodeofficial@gmail.com
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -61,9 +59,7 @@ const transporter = nodemailer.createTransport({
 
 // --- API ROUTES ---
 
-/**
- * POST: Create a new product
- */
+// Create Product
 app.post('/products', async (req, res) => {
   try {
     const newProduct = new Product(req.body); 
@@ -75,9 +71,7 @@ app.post('/products', async (req, res) => {
   }
 });
 
-/**
- * GET: Fetch all products for a user
- */
+// Fetch Products
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -87,40 +81,31 @@ app.get('/products/:email', async (req, res) => {
   }
 });
 
-/**
- * PUT: Update an existing product
- */
+// Update Product
 app.put('/products/:id', async (req, res) => {
   try {
     const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    console.log("✅ Product Updated:", updatedProduct.name);
     res.status(200).json(updatedProduct);
   } catch (error) {
     res.status(500).json({ error: "Failed to update product" });
   }
 });
 
-/**
- * PATCH: Toggle Publish/Unpublish status
- */
+// Toggle Status
 app.patch('/products/:id/status', async (req, res) => {
   try {
-    const { status } = req.body; // 'Published' or 'Unpublished'
+    const { status } = req.body;
     const updated = await Product.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    console.log(`📡 Product status changed to: ${status}`);
     res.status(200).json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * DELETE: Remove a product
- */
+// Delete Product
 app.delete('/products/:id', async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
-    console.log("🗑️ Product Deleted Successfully");
     res.status(200).json({ message: "Product deleted" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -129,6 +114,7 @@ app.delete('/products/:id', async (req, res) => {
 
 /**
  * POST: Send OTP
+ * Generates a 6-digit code and sends it via email.
  */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -136,6 +122,8 @@ app.post('/send-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[email] = otp;
     
+    console.log(`📨 OTP generated for ${email}: ${otp}`);
+
     await transporter.sendMail({
       from: 'pixelnodeofficial@gmail.com',
       to: email,
@@ -144,7 +132,28 @@ app.post('/send-otp', async (req, res) => {
     });
     res.status(200).json({ message: "OTP sent" });
   } catch (error) {
+    console.error("❌ Email Error:", error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST: Verify OTP
+ * Compares entered code with stored code using String conversion to avoid mismatches.
+ */
+app.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  
+  console.log(`🔍 Verifying: ${email} | Stored: ${otpStore[email]} | Received: ${otp}`);
+
+  // String conversion ensures comparison works even if one is a number
+  if (otpStore[email] && String(otpStore[email]) === String(otp)) {
+    console.log("✅ OTP Verified Successfully");
+    delete otpStore[email]; // Clear OTP after use
+    res.status(200).json({ message: "Login successful" });
+  } else {
+    console.log("❌ Invalid OTP Attempt");
+    res.status(400).json({ error: "Please enter a valid OTP" });
   }
 });
 
