@@ -7,36 +7,52 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. BULLETPROOF CORS CONFIGURATION
- * This allows your Vercel frontend to communicate with Render.
- * app.options('*') handles the "preflight" check that was causing your 404/CORS error.
+ * 1. UPDATED CORS CONFIGURATION
+ * Fixes the PathError crash and solves the CORS block.
  */
+const allowedOrigins = [
+  "https://productr-app.vercel.app",
+  "http://localhost:3000"
+];
+
 app.use(cors({
-  origin: [
-    "https://productr-app.vercel.app", 
-    "http://localhost:3000"
-  ],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error('CORS policy block'), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-app.options('*', cors()); // Enable pre-flight for all routes
+// Use (.*) instead of * to prevent the Missing Parameter Name error in Node 22
+app.options('(.*)', cors()); 
+
+// Middleware to manually ensure headers are set (Final safety net)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  next();
+});
 
 
 
-// Payload limits for Base64 images
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 2. MONGODB ATLAS CONNECTION
 const mongoURI = process.env.MONGO_URI;
-
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
-// 3. SCHEMAS
+// 3. PRODUCT SCHEMA
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, default: 'Foods' },
@@ -53,11 +69,17 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 
-// 4. OTP Storage (Temporary memory)
+// 4. USER SCHEMA
+const User = mongoose.model('User', new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now }
+}));
+
+// 5. OTP Storage (Temporary memory)
 let otpStore = {}; 
 
 /**
- * 5. NODEMAILER CONFIGURATION
+ * 6. NODEMAILER CONFIGURATION
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -69,10 +91,6 @@ const transporter = nodemailer.createTransport({
 
 // --- API ROUTES ---
 
-/**
- * POST: Send OTP
- * We add { success: true } so the frontend knows to move to Step 2.
- */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
   try {
@@ -87,33 +105,23 @@ app.post('/send-otp', async (req, res) => {
       subject: 'Productr OTP Code',
       text: `Your login code is ${otp}`
     });
-    
     res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
     console.error("❌ Email Error:", error.message);
-    res.status(500).json({ success: false, error: "Failed to send email. Check backend logs." });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-/**
- * POST: Verify OTP
- */
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
-  
-  console.log(`🔍 Verifying: ${email} | Stored: ${otpStore[email]} | Received: ${otp}`);
-
   if (otpStore[email] && String(otpStore[email]) === String(otp)) {
-    console.log("✅ OTP Verified Successfully");
     delete otpStore[email]; 
     res.status(200).json({ success: true, message: "Login successful" });
   } else {
-    console.log("❌ Invalid OTP Attempt");
     res.status(400).json({ success: false, error: "Please enter a valid OTP" });
   }
 });
 
-// Create Product
 app.post('/products', async (req, res) => {
   try {
     const newProduct = new Product(req.body); 
@@ -124,7 +132,6 @@ app.post('/products', async (req, res) => {
   }
 });
 
-// Fetch Products per User
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -134,7 +141,6 @@ app.get('/products/:email', async (req, res) => {
   }
 });
 
-// Update Product
 app.put('/products/:id', async (req, res) => {
   try {
     const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -144,7 +150,6 @@ app.put('/products/:id', async (req, res) => {
   }
 });
 
-// Toggle Status (Publish/Unpublish)
 app.patch('/products/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
@@ -155,7 +160,6 @@ app.patch('/products/:id/status', async (req, res) => {
   }
 });
 
-// Delete Product
 app.delete('/products/:id', async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
@@ -165,6 +169,5 @@ app.delete('/products/:id', async (req, res) => {
   }
 });
 
-// 6. START SERVER
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
