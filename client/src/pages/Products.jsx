@@ -21,17 +21,15 @@ const Products = () => {
     name: '', category: 'Foods', quantityStock: '', mrp: '', sellingPrice: '', brandName: '', isReturnable: 'Yes', images: []
   });
 
-  // 1. DYNAMIC EMAIL RETRIEVAL
-  // We pull the email saved during the OTP login process from localStorage
+  // Pull the email saved during the OTP login process from localStorage
   const userEmail = localStorage.getItem('userEmail'); 
 
   const fetchProducts = async () => {
-    // Only fetch if a user is logged in
     if (!userEmail) return; 
 
     try {
-      // 2. FILTERED FETCH: Requesting products specific to this email
-      const response = await fetch(`http://localhost:5000/products/${userEmail}`);
+      // UPDATED: Points to live Render backend
+      const response = await fetch(`https://productr-app.onrender.com/products/${userEmail}`);
       const data = await response.json();
       setProducts(data);
     } catch (err) { 
@@ -41,7 +39,7 @@ const Products = () => {
 
   useEffect(() => { 
     fetchProducts(); 
-  }, [userEmail]); // Refetch if the user changes
+  }, [userEmail]);
 
   const validateForm = () => {
     let tempErrors = {};
@@ -64,7 +62,8 @@ const Products = () => {
   const togglePublishStatus = async (product) => {
     const newStatus = product.status === 'Published' ? 'Unpublished' : 'Published';
     try {
-      const response = await fetch(`http://localhost:5000/products/${product._id}/status`, {
+      // UPDATED: Points to live Render backend
+      const response = await fetch(`https://productr-app.onrender.com/products/${product._id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -80,7 +79,8 @@ const Products = () => {
 
   const handleDeleteProduct = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/products/${productToDelete._id}`, { method: 'DELETE' });
+      // UPDATED: Points to live Render backend
+      const response = await fetch(`https://productr-app.onrender.com/products/${productToDelete._id}`, { method: 'DELETE' });
       if (response.ok) {
         setShowDeleteModal(false);
         fetchProducts();
@@ -95,13 +95,13 @@ const Products = () => {
     e.preventDefault();
     if (!validateForm()) return;
     setLoading(true);
-    const url = editingProduct ? `http://localhost:5000/products/${editingProduct._id}` : 'http://localhost:5000/products';
+    // UPDATED: Points to live Render backend
+    const url = editingProduct ? `https://productr-app.onrender.com/products/${editingProduct._id}` : 'https://productr-app.onrender.com/products';
     const method = editingProduct ? 'PUT' : 'POST';
     try {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        // 3. SECURE SAVE: Explicitly sending the current userEmail with the product
         body: JSON.stringify({ ...form, userEmail }),
       });
       if (response.ok) {
@@ -167,7 +167,7 @@ const Products = () => {
         <header className="bg-white border-b border-slate-100 flex-shrink-0 h-14 mt-14 z-10">
           <div className="h-full flex items-center justify-between px-8">
             <div className="flex items-center gap-2 text-[18px] font-bold text-[#445069]">
-               <img src={productIcon} alt="Icon" className="w-5 h-5" /> Products
+                <img src={productIcon} alt="Icon" className="w-5 h-5" /> Products
             </div>
             <button onClick={openAddModal} className="flex items-center gap-2 text-[#445069] font-medium text-[18px] hover:text-[#1D35D9] transition-colors">
                 <span className="text-[22px] font-light text-[#94a3b8]">+</span> Add Products

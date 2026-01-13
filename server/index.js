@@ -7,15 +7,22 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. PAYLOAD CONFIGURATION
+ * 1. CORS & PAYLOAD CONFIGURATION
  * High limits are essential for Base64 image strings.
+ * The 'origin' allows your live Vercel app to talk to this backend.
  */
-app.use(express.json({ limit: '50mb' }));
+app.use(cors({
+  origin: [
+    "https://productr-app.vercel.app", // REPLACE this with your actual Vercel URL
+    "http://localhost:3000"           // Keep for local development
+  ],
+  credentials: true
+}));
+
+app.use(express.json({ limit: '50mb' })); // Allow large image data
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors());
 
 // 2. MONGODB ATLAS CONNECTION
-// Using variable from .env
 const mongoURI = process.env.MONGO_URI;
 
 mongoose.connect(mongoURI)
@@ -50,7 +57,6 @@ let otpStore = {};
 
 /**
  * 6. NODEMAILER CONFIGURATION
- * Using variables from .env
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -74,7 +80,7 @@ app.post('/products', async (req, res) => {
   }
 });
 
-// Fetch Products
+// Fetch Products per User
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -94,7 +100,7 @@ app.put('/products/:id', async (req, res) => {
   }
 });
 
-// Toggle Status
+// Toggle Status (Publish/Unpublish)
 app.patch('/products/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
@@ -127,7 +133,7 @@ app.post('/send-otp', async (req, res) => {
     console.log(`📨 OTP generated for ${email}: ${otp}`);
 
     await transporter.sendMail({
-      from: process.env.EMAIL_USER, // Using variable from .env
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Productr OTP Code',
       text: `Your login code is ${otp}`
@@ -141,6 +147,7 @@ app.post('/send-otp', async (req, res) => {
 
 /**
  * POST: Verify OTP
+ * UPDATED: Includes 'success: true' to match frontend Login.jsx logic.
  */
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
@@ -150,13 +157,13 @@ app.post('/verify-otp', async (req, res) => {
   if (otpStore[email] && String(otpStore[email]) === String(otp)) {
     console.log("✅ OTP Verified Successfully");
     delete otpStore[email]; 
-    res.status(200).json({ message: "Login successful" });
+    res.status(200).json({ success: true, message: "Login successful" });
   } else {
     console.log("❌ Invalid OTP Attempt");
-    res.status(400).json({ error: "Please enter a valid OTP" });
+    res.status(400).json({ success: false, error: "Please enter a valid OTP" });
   }
 });
 
-// Using dynamic port for deployment
-const PORT = process.env.PORT || 5000;
+// Dynamic port for Render deployment
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
