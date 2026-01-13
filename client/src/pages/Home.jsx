@@ -45,9 +45,9 @@ const Home = () => {
   const filteredProducts = products.filter((p) => p.status === activeTab);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col h-screen overflow-hidden">
       {/* HEADER WITH GRADIENT AND TABS */}
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm flex-shrink-0">
         {/* Top Tier: Home Breadcrumb and Profile */}
         <div className="h-16 flex items-center justify-between px-8 bg-gradient-to-r from-[#fdf7ff] via-[#f8f9ff] to-[#f0f4ff]">
           <div className="flex items-center gap-2 text-slate-700 text-sm font-bold">
@@ -82,51 +82,73 @@ const Home = () => {
       </header>
 
       {/* DASHBOARD CONTENT */}
-      <main className="flex-1 overflow-y-auto p-8 bg-[#F8F9FA]">
-        <h2 className="text-lg font-bold text-slate-800 mb-6 tracking-tight">
-          {activeTab} Section
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredProducts.map((p) => (
-            <div key={p._id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-all">
-              <div className="p-4 bg-[#F8F9FA] h-52 flex items-center justify-center">
-                <div className="w-44 h-44 bg-white rounded-lg shadow-sm p-3 flex items-center justify-center">
-                  <img 
-                    src={p.images?.[0] || "https://via.placeholder.com/150"} 
-                    alt="product" 
-                    className="max-w-full max-h-full object-contain" 
-                  />
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <h3 className="font-bold text-slate-800 text-[15px] mb-4 truncate">{p.name}</h3>
-                <div className="space-y-1 text-[12px] text-slate-400 font-bold">
-                  <div className="flex justify-between"><span>Product type -</span><span className="text-slate-800 font-medium">{p.category}</span></div>
-                  <div className="flex justify-between"><span>MRP-</span><span className="text-slate-800 font-medium">₹ {p.mrp}</span></div>
-                  <div className="flex justify-between"><span>Selling Price -</span><span className="text-slate-800 font-medium">₹ {p.sellingPrice}</span></div>
-                  <div className="flex justify-between pt-2 border-t border-slate-50">
-                    <span>Exchange Eligibility -</span>
-                    <span className="text-slate-800">.{p.isReturnable}</span>
+      <main className="flex-1 overflow-y-auto bg-[#F8F9FA] relative">
+        {filteredProducts.length === 0 ? (
+          /* EMPTY STATE - CENTERED */
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+            <div className="mb-6">
+              {/* SVG Grid Icon with Plus */}
+              <svg width="84" height="84" viewBox="0 0 24 24" fill="none" className="text-[#001D9D] mx-auto opacity-90">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 17.5h7m-3.5-3.5v7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h2 className="text-[#1D2939] text-[20px] font-bold mb-2">No {activeTab} Products</h2>
+            <p className="text-[#94a3b8] text-[13px] max-w-xs leading-relaxed">
+              Your {activeTab} Products will appear here <br />
+              Create your first product to publish
+            </p>
+          </div>
+        ) : (
+          /* PRODUCT GRID */
+          <div className="p-8">
+            <h2 className="text-lg font-bold text-slate-800 mb-6 tracking-tight">
+              {activeTab} Section
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {filteredProducts.map((p) => (
+                <div key={p._id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-all">
+                  <div className="p-4 bg-[#F8F9FA] h-52 flex items-center justify-center">
+                    <div className="w-44 h-44 bg-white rounded-lg shadow-sm p-3 flex items-center justify-center">
+                      <img 
+                        src={p.images?.[0] || "https://via.placeholder.com/150"} 
+                        alt="product" 
+                        className="max-w-full max-h-full object-contain" 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="p-6">
+                    <h3 className="font-bold text-slate-800 text-[15px] mb-4 truncate">{p.name}</h3>
+                    <div className="space-y-1 text-[12px] text-slate-400 font-bold">
+                      <div className="flex justify-between"><span>Product type -</span><span className="text-slate-800 font-medium">{p.category}</span></div>
+                      <div className="flex justify-between"><span>MRP-</span><span className="text-slate-800 font-medium">₹ {p.mrp}</span></div>
+                      <div className="flex justify-between"><span>Selling Price -</span><span className="text-slate-800 font-medium">₹ {p.sellingPrice}</span></div>
+                      <div className="flex justify-between pt-2 border-t border-slate-50">
+                        <span>Exchange Eligibility -</span>
+                        <span className="text-slate-800">.{p.isReturnable}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-6">
+                      <button 
+                        onClick={() => togglePublishStatus(p)} 
+                        className={`flex-1 py-2 rounded-md font-bold text-xs text-white shadow-sm transition-all active:scale-95 ${
+                          p.status === 'Published' ? 'bg-[#FF6D00]' : 'bg-[#1D35D9]'
+                        }`}
+                      >
+                        {p.status === 'Published' ? 'Unpublish' : 'Publish'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="flex gap-2 mt-6">
-                  {/* UNPUBLISH/PUBLISH BUTTON */}
-                  <button 
-                    onClick={() => togglePublishStatus(p)} 
-                    className={`flex-1 py-2 rounded-md font-bold text-xs text-white shadow-sm transition-all active:scale-95 ${
-                      p.status === 'Published' ? 'bg-[#FF6D00]' : 'bg-[#1D35D9]'
-                    }`}
-                  >
-                    {p.status === 'Published' ? 'Unpublish' : 'Publish'}
-                  </button>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </main>
 
       {/* TOAST NOTIFICATION */}
