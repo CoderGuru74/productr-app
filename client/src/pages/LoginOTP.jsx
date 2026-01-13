@@ -5,9 +5,9 @@ import promoImg from '../assets/Frame 2.png';
 const LoginOTP = () => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']); 
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState(1); // 1: Email Entry, 2: OTP Entry
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(''); // State for error message
+  const [error, setError] = useState(''); 
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
@@ -17,7 +17,7 @@ const LoginOTP = () => {
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-    setError(''); // Clear error when user types
+    setError(''); 
 
     if (value !== '' && index < 5) {
       inputRefs.current[index + 1].focus();
@@ -49,10 +49,6 @@ const LoginOTP = () => {
     }
   };
 
-  /**
-   * REFINED VERIFICATION LOGIC
-   * Specifically fixed to handle successful login
-   */
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     setError(''); 
@@ -73,12 +69,9 @@ const LoginOTP = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Log user email for session persistence
         localStorage.setItem('userEmail', email);
-        // Successful login redirect
         navigate('/'); 
       } else {
-        // Display red error UI
         setError(data.error || "Please enter a valid OTP");
       }
     } catch (err) {
@@ -98,9 +91,10 @@ const LoginOTP = () => {
         </div>
 
         {/* RIGHT PANEL: AUTHENTICATION */}
-        <div className="flex-1 flex flex-col justify-center px-10 md:px-20 relative bg-white">
+        <div className="flex-1 flex flex-col justify-center px-10 md:px-16 relative bg-white">
           <div className="w-full max-w-sm mx-auto">
-            <h2 className="text-[28px] font-bold text-[#001D4D] mb-10 tracking-tight">
+            {/* FIXED HEADING: Now stays on one line */}
+            <h2 className="text-[24px] font-bold text-[#001D4D] mb-10 tracking-tight whitespace-nowrap">
               Login to your Productr Account
             </h2>
 
@@ -142,7 +136,6 @@ const LoginOTP = () => {
                         type="text"
                         maxLength="1"
                         ref={el => inputRefs.current[index] = el}
-                        // Apply error styling
                         className={`w-12 h-12 md:w-14 md:h-14 border-2 rounded-xl text-center font-bold text-xl outline-none transition-all ${
                           error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-[#00147B]'
                         }`}

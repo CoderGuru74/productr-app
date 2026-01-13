@@ -21,17 +21,27 @@ const Products = () => {
     name: '', category: 'Foods', quantityStock: '', mrp: '', sellingPrice: '', brandName: '', isReturnable: 'Yes', images: []
   });
 
-  const userEmail = "pixelnodeofficial@gmail.com"; 
+  // 1. DYNAMIC EMAIL RETRIEVAL
+  // We pull the email saved during the OTP login process from localStorage
+  const userEmail = localStorage.getItem('userEmail'); 
 
   const fetchProducts = async () => {
+    // Only fetch if a user is logged in
+    if (!userEmail) return; 
+
     try {
+      // 2. FILTERED FETCH: Requesting products specific to this email
       const response = await fetch(`http://localhost:5000/products/${userEmail}`);
       const data = await response.json();
       setProducts(data);
-    } catch (err) { console.error("Fetch error:", err); }
+    } catch (err) { 
+      console.error("Fetch error:", err); 
+    }
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { 
+    fetchProducts(); 
+  }, [userEmail]); // Refetch if the user changes
 
   const validateForm = () => {
     let tempErrors = {};
@@ -91,6 +101,7 @@ const Products = () => {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
+        // 3. SECURE SAVE: Explicitly sending the current userEmail with the product
         body: JSON.stringify({ ...form, userEmail }),
       });
       if (response.ok) {
@@ -148,16 +159,11 @@ const Products = () => {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden font-sans">
-      {/* 1. FIXED SIDEBAR */}
       <Sidebar />
 
-      {/* 2. MAIN CONTENT AREA shifted right to clear sidebar */}
       <div className="flex-1 ml-64 flex flex-col min-w-0 bg-white relative">
-        
-        {/* 3. TOP NAVBAR */}
         <Navbar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
-        {/* 4. PRODUCT SUB-HEADER shifted down by mt-14 to clear Navbar */}
         <header className="bg-white border-b border-slate-100 flex-shrink-0 h-14 mt-14 z-10">
           <div className="h-full flex items-center justify-between px-8">
             <div className="flex items-center gap-2 text-[18px] font-bold text-[#445069]">
@@ -169,7 +175,6 @@ const Products = () => {
           </div>
         </header>
 
-        {/* 5. GRID AREA */}
         <main className="flex-1 overflow-y-auto relative bg-[#F8F9FA]">
           {filteredProducts.length === 0 ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-white">
@@ -227,7 +232,6 @@ const Products = () => {
         </main>
       </div>
 
-      {/* MODALS WITH HIGH Z-INDEX */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-lg w-full max-w-[440px] shadow-2xl p-6 relative">
@@ -292,7 +296,6 @@ const Products = () => {
         </div>
       )}
 
-      {/* TOAST NOTIFICATION */}
       {showToast && (
         <div className="fixed bottom-10 right-10 z-[250] bg-white border border-slate-100 rounded-lg shadow-xl px-6 py-3 flex items-center gap-3 animate-in slide-in-from-right-5">
             <span className="w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>

@@ -5,16 +5,22 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [userEmail, setUserEmail] = useState("Guest"); // Default state
   const profileRef = useRef(null);
-  
-  const userEmail = "pixelnodeofficial@gmail.com";
+
+  // 1. Fetch the actual logged-in email from localStorage
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('userEmail');
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+    }
+  }, []);
 
   const toggleMenu = (e) => {
     e.stopPropagation();
     setShowProfileMenu(!showProfileMenu);
   };
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
@@ -26,21 +32,14 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
   }, []);
 
   const handleLogout = () => {
-    // 1. Clear local storage/session if you are using tokens
-    localStorage.removeItem('token'); 
-    localStorage.removeItem('userEmail');
-    
-    // 2. Close the menu
+    localStorage.removeItem('userEmail'); // Clear the session
     setShowProfileMenu(false);
-    
-    // 3. Redirect to OTP Login Page
-    navigate('/login-otp'); 
+    navigate('/login-otp');
   };
 
   return (
     <header className="fixed top-0 left-64 right-0 bg-white border-b border-slate-100 h-14 flex items-center justify-between px-10 z-[90]">
       
-      {/* LEFT SIDE: Conditional Shopping Bag */}
       <div className="flex items-center min-w-[20px]">
         {location.pathname === '/products' && (
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-slate-500">
@@ -49,9 +48,7 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
         )}
       </div>
 
-      {/* RIGHT SIDE: Search (Conditional) + Profile */}
       <div className="flex items-center gap-6">
-        
         {location.pathname === '/products' && (
           <div className="relative w-72">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -70,11 +67,11 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
         )}
 
         <div className="relative" ref={profileRef}>
-          <div onClick={toggleMenu} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded-lg">
-            <div className="w-8 h-8 rounded-full border border-slate-200 overflow-hidden shadow-sm bg-slate-100">
-              <img src="https://via.placeholder.com/32" alt="avatar" className="w-full h-full object-cover" />
+          <div onClick={toggleMenu} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-all">
+            <div className="w-8 h-8 rounded-full border border-slate-200 overflow-hidden shadow-sm bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
+              {userEmail.charAt(0).toUpperCase()}
             </div>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform ${showProfileMenu ? 'rotate-180' : ''}`}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`}>
               <path d="m6 9 6 6 6-6"/>
             </svg>
           </div>
@@ -83,9 +80,9 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
             <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 shadow-2xl rounded-xl p-2 z-[999]">
               <div className="px-3 py-2 border-b border-slate-50 mb-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Signed in as</p>
+                {/* 2. DISPLAY THE DYNAMIC EMAIL */}
                 <p className="text-xs font-semibold text-slate-700 truncate">{userEmail}</p>
               </div>
-              {/* UPDATED LOGOUT BUTTON */}
               <button 
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
