@@ -1,75 +1,51 @@
 require('dotenv').config(); 
 const express = require('express');
 const nodemailer = require('nodemailer');
+const cors = require('cors');
 const mongoose = require('mongoose');
 
 const app = express();
 
 /**
- * 1. MANUAL CORS HANDLER
- * Library par depend rehne ke bajaye hum khud headers set kar rahe hain
- * taaki 502 Bad Gateway aur CORS error hamesha ke liye khatam ho jaye.
+ * 1. CORS FIX
+ * Is baar hum origin ko explicitly allow kar rahe hain.
  */
-app.use((req, res, next) => {
-  // Sabhi origins allow karne ke liye '*' ya apni Vercel URL use karein
-  res.header("Access-Control-Allow-Origin", "*"); 
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  
-  // Browsers jab POST request bhejte hain toh pehle OPTIONS check karte hain
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
+app.use(cors({
+  origin: ["https://productr-app.vercel.app", "http://localhost:5173"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
 
-// Payload limit for images
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 /**
  * 2. HEALTH CHECK
  */
-app.get('/health', (req, res) => {
-  res.status(200).send("Server is Healthy and Running ✅");
-});
+app.get('/health', (req, res) => res.status(200).send("OK"));
 
-// 3. MONGODB CONNECTION
+// 3. DATABASE
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected Successfully"))
-  .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => console.error("❌ MongoDB Error:", err.message));
 
-// 4. PRODUCT SCHEMA
-const productSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  category: { type: String, default: 'Foods' },
-  userEmail: { type: String, required: true },
-  images: [String],
-  createdAt: { type: Date, default: Date.now }
-});
-const Product = mongoose.model('Product', productSchema);
-
-// 5. OTP STORAGE (In-memory)
 let otpStore = {}; 
 
 /**
- * 6. SEND OTP ROUTE
+ * 4. SEND OTP ROUTE
  */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
-  
-  if (!email) {
-    return res.status(400).json({ success: false, error: "Email is required" });
-  }
+  if (!email) return res.status(400).json({ success: false, error: "Email required" });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const otp = Math.floor(100000 + Math.random() * 900000);
+  otpStore[normalizedEmail] = otp;
+
+  console.log(`📨 Requesting OTP for: ${normalizedEmail}`);
 
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    const normalizedEmail = email.trim().toLowerCase();
-    otpStore[normalizedEmail] = otp;
-
-    console.log(`📨 Attempting to send OTP to: ${normalizedEmail}`);
-
-    // Transporter with your NEW password
+    // Transporter Setup
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -78,34 +54,33 @@ app.post('/send-otp', async (req, res) => {
       }
     });
 
-    // Send the email
-    await transporter.sendMail({
+    // Email bhejte waqt timeout handle karne ke liye
+    const mailOptions = {
       from: '"Productr App" <pixelnodeofficial@gmail.com>',
       to: normalizedEmail,
       subject: 'Login OTP Verification',
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; text-align: center;">
-          <h2 style="color: #000066;">Your Verification Code</h2>
-          <h1 style="color: #000066; font-size: 40px; letter-spacing: 5px;">${otp}</h1>
-          <p>Please use this code to log in to your account.</p>
-        </div>
-      `
-    });
+      text: `Your OTP is: ${otp}`
+    };
 
+    // Send Mail
+    await transporter.sendMail(mailOptions);
+    
     console.log(`✅ Success: OTP sent to ${normalizedEmail}`);
     return res.status(200).json({ success: true });
 
   } catch (error) {
     console.error("❌ NODEMAILER ERROR:", error.message);
+    // Agar email fail bhi ho jaye, toh 500 bhejenge with details
     return res.status(500).json({ 
       success: false, 
-      error: "Failed to send OTP. Please check backend logs." 
+      error: "Email delivery failed", 
+      details: error.message 
     });
   }
 });
 
 /**
- * 7. VERIFY OTP ROUTE
+ * 5. VERIFY OTP ROUTE
  */
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
@@ -113,21 +88,17 @@ app.post('/verify-otp', (req, res) => {
 
   if (otpStore[userEmail] && String(otpStore[userEmail]) === String(otp)) {
     delete otpStore[userEmail];
-    console.log(`✅ OTP Verified for ${userEmail}`);
     return res.status(200).json({ success: true });
-  } else {
-    return res.status(400).json({ success: false, error: "Invalid or expired OTP" });
   }
+  return res.status(400).json({ success: false, error: "Invalid OTP" });
 });
 
-// 8. PRODUCT GET & POST
+// 6. PRODUCT ROUTES
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
-    res.status(200).json(products);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+    res.json(products);
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/products', async (req, res) => {
@@ -135,15 +106,10 @@ app.post('/products', async (req, res) => {
     const newProduct = new Product(req.body);
     await newProduct.save();
     res.status(201).json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to save product" });
-  }
+  } catch (error) { res.status(500).json({ error: "Save failed" }); }
 });
 
-/**
- * 9. SERVER START
- */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server Live on Port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
