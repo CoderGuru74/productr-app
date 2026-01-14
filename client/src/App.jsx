@@ -5,13 +5,18 @@ import Home from './pages/Home';
 import Products from './pages/Products';
 import Login from './pages/Login';
 
+/**
+ * ProtectedRoute Component
+ * Checks localStorage to ensure only logged-in users can see Home/Products.
+ */
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('userEmail');
   return isAuthenticated ? children : <Navigate to="/login-otp" replace />;
 };
 
 /**
- * 🚀 FIXED LayoutWrapper
+ * LayoutWrapper Component
+ * Handles responsive layout logic for Sidebar and Main Content.
  */
 const LayoutWrapper = ({ children }) => {
   const location = useLocation();
@@ -21,12 +26,13 @@ const LayoutWrapper = ({ children }) => {
 
   return (
     <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden relative">
-      {/* Sidebar Component */}
+      {/* Sidebar logic is now internally responsive */}
       {showSidebar && <Sidebar />}
       
-      {/* 🚩 FIX: md:ml-64 use kiya hai. 
-          Mobile par margin 0 rahega (ml-0), 
-          aur Desktop (md) par 64 units ka margin left se aayega.
+      {/* 🚀 MAIN CONTENT FIX:
+        - ml-0: Mobile par margin nahi hoga (Content full width dikhega).
+        - md:ml-64: Laptop/Desktop (md breakpoint) par 64 units ka margin left se aayega.
+        - transition-all: Layout change hone par smooth transition dega.
       */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ${showSidebar ? 'ml-0 md:ml-64' : 'ml-0'}`}>
         {children}
@@ -40,7 +46,10 @@ function App() {
     <Router>
       <LayoutWrapper>
         <Routes>
+          {/* Public Route */}
           <Route path="/login-otp" element={<Login />} />
+          
+          {/* Protected Routes */}
           <Route 
             path="/" 
             element={
@@ -57,6 +66,8 @@ function App() {
               </ProtectedRoute>
             } 
           />
+
+          {/* Fallback to Home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </LayoutWrapper>
