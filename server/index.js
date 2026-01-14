@@ -6,34 +6,23 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-/**
- * 1. BULLETPROOF CORS
- * Is baar hum origin ko explicitly allow kar rahe hain.
- */
+// 1. CORS Setup - Sabhi origins allow kar diye taaki browser error na de
 app.use(cors({
-  origin: ["https://productr-app.vercel.app", "http://localhost:5173"],
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use(express.json({ limit: '50mb' }));
 
-/**
- * 2. HEALTH CHECK
- */
-app.get('/health', (req, res) => res.status(200).send("OK"));
-
-// 3. DATABASE
+// 2. MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ MongoDB Error:", err.message));
+  .catch(err => console.error("❌ MongoDB Error:", err));
 
 let otpStore = {}; 
 
-/**
- * 4. SEND OTP ROUTE (Optimized for Render)
- */
+// 3. SEND OTP ROUTE
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email required" });
@@ -42,28 +31,32 @@ app.post('/send-otp', async (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000);
   otpStore[normalizedEmail] = otp;
 
-  console.log(`📨 Attempting to send OTP to: ${normalizedEmail}`);
+  console.log(`📨 Requesting OTP for: ${normalizedEmail}`);
+
+  /**
+   * 🚩 IMPORTANT: Render Fix
+   * Port 587 aur secure: false hi Render par chalta hai.
+   */
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // TLS ke liye false zaroori hai
+    auth: {
+      user: 'pixelnodeofficial@gmail.com',
+      pass: 'wnux dvib bgsw rllg' 
+    },
+    tls: {
+      rejectUnauthorized: false // Connection drop hone se bachata hai
+    }
+  });
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false, // 587 uses STARTTLS
-      auth: {
-        user: 'pixelnodeofficial@gmail.com',
-        pass: 'wnux dvib bgsw rllg' 
-      },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-
-    // Directly send without separate verify() to avoid timeout
+    // 10 second ka timeout limit lagana taaki server hang na ho
     await transporter.sendMail({
       from: '"Productr App" <pixelnodeofficial@gmail.com>',
       to: normalizedEmail,
       subject: 'Login OTP Verification',
-      text: `Your OTP is: ${otp}`
+      text: `Your verification code is: ${otp}`
     });
     
     console.log(`✅ Success: OTP sent to ${normalizedEmail}`);
@@ -71,18 +64,15 @@ app.post('/send-otp', async (req, res) => {
 
   } catch (error) {
     console.error("❌ NODEMAILER ERROR:", error.message);
-    // Connection timeout se bachne ke liye jaldi response bhejna
     return res.status(500).json({ 
       success: false, 
-      error: "Could not send email", 
+      error: "Connection timeout - Gmail port 587 test failed", 
       details: error.message 
     });
   }
 });
 
-/**
- * 5. VERIFY OTP ROUTE
- */
+// 4. VERIFY OTP ROUTE
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   const userEmail = email.trim().toLowerCase();
@@ -94,15 +84,10 @@ app.post('/verify-otp', (req, res) => {
   return res.status(400).json({ success: false, error: "Invalid OTP" });
 });
 
-// 6. PRODUCT SCHEMA (Minimal for Testing)
-const productSchema = new mongoose.Schema({
-    name: String,
-    userEmail: String,
-    createdAt: { type: Date, default: Date.now }
-});
-const Product = mongoose.model('Product', productSchema);
+// Health check for Render
+app.get('/health', (req, res) => res.status(200).send("Alive"));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server Live on Port ${PORT}`);
 });
