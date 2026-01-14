@@ -6,39 +6,25 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-// 1. CORS & PAYLOAD (Very important for Base64)
 app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: '50mb' }));
 
-// 2. DATABASE
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ DB Error:", err.message));
 
-// Products Schema
-const Product = mongoose.model('Product', new mongoose.Schema({
-  name: String, category: String, quantityStock: String, mrp: String, 
-  sellingPrice: String, brandName: String, images: [String], 
-  status: { type: String, default: 'Published' }, userEmail: String,
-  createdAt: { type: Date, default: Date.now }
-}));
-
 let otpStore = {}; 
 
-// 3. NODEMAILER (Render-ready)
+// 🚩 NODEMAILER: Sabse simple configuration
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, 
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  },
-  tls: { rejectUnauthorized: false }
+  }
 });
 
-// 4. ROUTES
-app.get('/', (req, res) => res.send("Backend is Running! 🚀"));
+app.get('/', (req, res) => res.send("Server is running! 🚀"));
 
 app.post('/send-otp', (req, res) => {
   const { email } = req.body;
@@ -48,20 +34,25 @@ app.post('/send-otp', (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000);
   otpStore[normalizedEmail] = otp;
 
-  console.log(`📨 Request for: ${normalizedEmail}`);
+  console.log(`📨 Request received for: ${normalizedEmail}`);
 
-  // Fast response for Frontend
+  // 🚩 STEP 1: Turant Response bhej do (Taaki frontend hang na ho)
   res.status(200).json({ success: true });
 
-  // Background Mail
+  // 🚩 STEP 2: Background mein mail bhej do (Wait mat karo)
+  // Hum 'await' use NAHI karenge yahan
   transporter.sendMail({
     from: `"Productr Support" <${process.env.EMAIL_USER}>`,
     to: normalizedEmail,
-    subject: 'Login Code',
-    html: `<h3>Your code is: <b>${otp}</b></h3>`
+    subject: `Your Login Code: ${otp}`,
+    text: `Your OTP is ${otp}`,
+    html: `<b>Your verification code is: ${otp}</b>`
   }, (err, info) => {
-    if (err) return console.log("❌ Mail Error:", err.message);
-    console.log("✅ EMAIL SENT:", info.response);
+    if (err) {
+      console.log("❌ MAIL ERROR:", err.message);
+    } else {
+      console.log("✅ MAIL DELIVERED:", info.response);
+    }
   });
 });
 
@@ -75,13 +66,7 @@ app.post('/verify-otp', (req, res) => {
   res.status(400).json({ success: false });
 });
 
-app.get('/products/:email', async (req, res) => {
-    try { const ps = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 }); res.json(ps); } 
-    catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// 5. SERVER BINDING (Fixes the "Stuck" issue)
-// Render wants port 10000 or the one provided in process.env
+// Port binding for Render
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server listening on 0.0.0.0:${PORT}`);
