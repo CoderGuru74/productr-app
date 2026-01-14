@@ -7,13 +7,12 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. CORS CONFIGURATION
- * Sabhi connections allow karne ke liye.
+ * 1. SIMPLIFIED CORS (Fixed PathError)
  */
-app.use(cors());
-app.options('*', cors());
+app.use(cors()); // Sabhi origins allow honge
 app.use(express.json({ limit: '50mb' }));
 
+// Manual Headers (Fixed version)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -26,7 +25,7 @@ app.use((req, res, next) => {
  */
 app.get('/health', (req, res) => res.status(200).send("Server is Healthy ✅"));
 
-// 3. MONGODB CONNECTION (Keep MONGO_URI in Render only for security)
+// 3. MONGODB CONNECTION
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err.message));
@@ -44,7 +43,7 @@ const Product = mongoose.model('Product', productSchema);
 // 5. OTP STORAGE
 let otpStore = {}; 
 
-// 6. SEND OTP ROUTE (With Hardcoded Gmail Credentials)
+// 6. SEND OTP ROUTE (Hardcoded for Final Test)
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email is required" });
@@ -54,49 +53,35 @@ app.post('/send-otp', async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     otpStore[normalizedEmail] = otp;
 
-    console.log(`📨 Requesting OTP for: ${normalizedEmail}`);
+    console.log(`📨 Attempting to send OTP to: ${normalizedEmail}`);
 
-    /**
-     * 🚩 HARDCODED EMAIL CREDENTIALS
-     * Humne yahan direct password aur email daal diya hai 
-     * taaki Render Variables ka issue khatam ho jaye.
-     */
     const transporter = nodemailer.createTransport({
       service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, 
       auth: {
-        user: 'pixelnodeofficial@gmail.com', // Aapka email
-        pass: 'wnux dvib bgsw rllg'          // Aapka 16-digit App Password
+        user: 'pixelnodeofficial@gmail.com',
+        pass: 'wnux dvib bgsw rllg' // Aapka naya working password
+      },
+      tls: {
+        rejectUnauthorized: false
       }
     });
 
-    // Pehle connection check karte hain
-    await transporter.verify();
-
-    const mailOptions = {
+    await transporter.sendMail({
       from: `"Productr App" <pixelnodeofficial@gmail.com>`,
       to: normalizedEmail,
       subject: 'Login OTP Verification',
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center; border: 1px solid #eee;">
-          <h2 style="color: #000066;">Productr Verification</h2>
-          <p>Your verification code is:</p>
-          <h1 style="color: #000066; font-size: 40px;">${otp}</h1>
-          <p>If you didn't request this, please ignore this email.</p>
-        </div>
-      `
-    };
+      text: `Your OTP is: ${otp}`
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Success! OTP sent: ${info.response}`);
-    
+    console.log(`✅ OTP sent successfully to ${normalizedEmail}`);
     return res.status(200).json({ success: true });
 
   } catch (error) {
-    console.error("❌ NODEMAILER FATAL ERROR:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: `Mail System Error: ${error.message}` 
-    });
+    console.error("❌ NODEMAILER ERROR:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -107,7 +92,6 @@ app.post('/verify-otp', (req, res) => {
 
   if (otpStore[userEmail] && String(otpStore[userEmail]) === String(otp)) {
     delete otpStore[userEmail];
-    console.log(`✅ OTP Verified for ${userEmail}`);
     return res.status(200).json({ success: true });
   } else {
     return res.status(400).json({ success: false, error: "Invalid OTP code" });
