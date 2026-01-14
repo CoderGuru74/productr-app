@@ -8,7 +8,7 @@ const app = express();
 
 /**
  * 1. UPDATED CORS CONFIGURATION
- * Added your specific Vercel path to the allowed origins.
+ * Allows requests from your specific Vercel URL
  */
 const allowedOrigins = [
   "https://productr-app.vercel.app",
@@ -18,7 +18,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) === -1) {
       return callback(new Error('CORS Policy Block'), false);
@@ -28,14 +27,14 @@ app.use(cors({
   credentials: true
 }));
 
-// Manual Middleware for Preflight and Headers
+// Manual Middleware to catch the "OPTIONS" preflight and set headers
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
@@ -43,6 +42,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+
 
 // Payload limits for Base64 images
 app.use(express.json({ limit: '50mb' }));
@@ -54,7 +55,7 @@ mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
-// 3. SCHEMAS
+// 3. PRODUCT SCHEMA
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, default: 'Foods' },
@@ -76,25 +77,21 @@ let otpStore = {};
 
 /**
  * 5. NODEMAILER CONFIGURATION
- * Ensure you use an "App Password" in your Render Environment Variables!
+ * FIXED: Uses Port 465 (SSL) which is more reliable on Render.
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true,
+  secure: true, 
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    pass: process.env.EMAIL_PASS // MUST be a 16-character Google App Password
   }
 });
 
 // --- API ROUTES ---
 
-/**
- * POST: Send OTP
- * Standardized response with success: true/false for frontend logic.
- */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email is required" });
@@ -103,44 +100,37 @@ app.post('/send-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[email] = otp;
     
-    console.log(`📨 Attempting to send OTP to ${email}`);
+    console.log(`📨 Attempting to send OTP: ${otp} to ${email}`);
 
-    const info = await transporter.sendMail({
+    await transporter.sendMail({
       from: `"Productr App" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Your Productr Login Code',
-      text: `Your login code is ${otp}. It will expire in 10 minutes.`,
-      html: `<div style="font-family: sans-serif; padding: 20px;">
-              <h2>Login Verification</h2>
-              <p>Your OTP code is: <b style="font-size: 24px; color: #000066;">${otp}</b></p>
-              <p>This code will expire in 10 minutes.</p>
-             </div>`
+      text: `Your login code is ${otp}.`,
+      html: `<b>Your login code is ${otp}</b>`
     });
     
-    console.log("✅ Email sent successfully:", info.response);
+    console.log("✅ Email sent successfully via Gmail SMTP");
     res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
-    // Log the full error to Render console so we can debug the 500 error
-    console.error("❌ NODEMAILER ERROR DETAIL:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Email Service Failed", 
-      details: error.message 
-    });
+    console.error("❌ NODEMAILER ERROR:", error.message);
+    res.status(500).json({ success: false, error: "Email service failed", details: error.message });
   }
 });
 
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
+  console.log(`🔍 Verifying ${email} with OTP: ${otp}`);
+
   if (otpStore[email] && String(otpStore[email]) === String(otp)) {
     delete otpStore[email]; 
     res.status(200).json({ success: true, message: "Login successful" });
   } else {
-    res.status(400).json({ success: false, error: "Please enter a valid OTP" });
+    res.status(400).json({ success: false, error: "Invalid OTP code" });
   }
 });
 
-// Product Routes
+// Product GET, POST, PUT, DELETE Routes
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
