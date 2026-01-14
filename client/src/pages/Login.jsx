@@ -5,18 +5,14 @@ import logo from '../assets/Frame 4.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']); 
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); // Array for 6-digit grid
   const [step, setStep] = useState(1); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(''); 
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  // 🚩 PRODUCTION URL LOGIC
-  const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:5000' 
-    : 'https://productr-app.onrender.com';
-
+  // Auto-focus logic for the 6-digit OTP grid
   const handleOtpChange = (value, index) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
@@ -40,22 +36,19 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/send-otp`, {
+      const response = await fetch('http://localhost:5000/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      
-      const data = await response.json();
-
       if (response.ok) {
         setStep(2);
       } else {
+        const data = await response.json();
         setError(data.error || "Failed to send OTP");
       }
     } catch (err) {
-      setError("Server is waking up. Please try again in 30 seconds.");
-      console.error("Fetch Error:", err);
+      setError("Error connecting to server.");
     } finally {
       setLoading(false);
     }
@@ -66,7 +59,7 @@ const Login = () => {
     setLoading(true);
     const enteredOtp = otp.join('');
     try {
-      const response = await fetch(`${API_BASE_URL}/verify-otp`, {
+      const response = await fetch('http://localhost:5000/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: enteredOtp }),
@@ -75,13 +68,16 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // 1. SAVE to localStorage so App.jsx knows you are logged in
         localStorage.setItem('userEmail', email);
+        
+        // 2. FORCE REFRESH to root so App.jsx state resets and shows Sidebar
         window.location.assign('/'); 
       } else {
-        setError(data.error || "Invalid OTP code");
+        setError(data.error || "Invalid OTP");
       }
     } catch (err) {
-      setError("Verification failed. Check your connection.");
+      setError("Verification failed.");
     } finally {
       setLoading(false);
     }
@@ -91,17 +87,19 @@ const Login = () => {
     <div className="min-h-screen bg-white flex items-center justify-center font-sans overflow-hidden">
       <div className="w-full h-screen flex flex-col md:flex-row">
         
-        {/* LEFT SIDE: Branding */}
+        {/* LEFT SIDE: Image Section with Logo Overlay */}
         <div className="w-full md:w-1/2 h-full p-4 md:p-8 flex items-center justify-center">
           <div className="w-full h-full rounded-[40px] overflow-hidden relative border border-slate-100 shadow-sm">
+            {/* LOGO Overlay */}
             <div className="absolute top-8 left-8 z-10">
-              <img src={logo} alt="Logo" className="h-8 md:h-10 object-contain" />
+              <img src={logo} alt="Productr Logo" className="h-8 md:h-10 object-contain" />
             </div>
-            <img src={loginImage} alt="Login Branding" className="w-full h-full object-cover" />
+            {/* MAIN BRANDING IMAGE */}
+            <img src={loginImage} alt="Branding" className="w-full h-full object-cover" />
           </div>
         </div>
 
-        {/* RIGHT SIDE: Form */}
+        {/* RIGHT SIDE: Form Section */}
         <div className="w-full md:w-1/2 flex flex-col items-center justify-center px-10 md:px-20 relative bg-white">
           <div className="w-full max-w-[460px]">
             <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 whitespace-nowrap text-left">
@@ -118,7 +116,7 @@ const Login = () => {
                     type="email" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter email address"
+                    placeholder="Enter email or phone number"
                     className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-200 transition-all placeholder:text-gray-300 text-[15px]"
                     required
                   />
@@ -154,10 +152,11 @@ const Login = () => {
                 disabled={loading}
                 className="w-full bg-[#000066] text-white py-4 rounded-xl font-bold text-[16px] shadow-lg hover:bg-[#00004d] transition-all active:scale-[0.98] disabled:bg-gray-300"
               >
-                {loading ? "Please wait..." : step === 1 ? "Get OTP" : "Verify & Login"}
+                {loading ? "Processing..." : step === 1 ? "Get OTP" : "Verify & Login"}
               </button>
             </form>
 
+            {/* Bottom Section: SignUp Link */}
             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-[380px] border border-gray-100 rounded-[20px] p-5 text-center bg-gray-50/40">
               <p className="text-gray-400 text-[13px] font-medium">
                 Don't have a Productr Account? <button type="button" className="text-[#000066] font-extrabold ml-1 hover:underline">SignUp Here</button>

@@ -7,34 +7,29 @@ import Login from './pages/Login';
 
 /**
  * ProtectedRoute Component
- * Checks localStorage to ensure only logged-in users can see Home/Products.
+ * This now checks localStorage every time the route is accessed.
  */
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('userEmail');
+  // If not logged in, send them to login page
   return isAuthenticated ? children : <Navigate to="/login-otp" replace />;
 };
 
 /**
  * LayoutWrapper Component
- * Handles responsive layout logic for Sidebar and Main Content.
+ * Handles the conditional rendering of the Sidebar based on current state.
  */
 const LayoutWrapper = ({ children }) => {
   const location = useLocation();
   const isAuthenticated = !!localStorage.getItem('userEmail');
   const isLoginPage = location.pathname === '/login-otp';
-  const showSidebar = isAuthenticated && !isLoginPage;
 
   return (
-    <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden relative">
-      {/* Sidebar logic is now internally responsive */}
-      {showSidebar && <Sidebar />}
+    <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden">
+      {/* Sidebar only shows if user is logged in AND not on login page */}
+      {isAuthenticated && !isLoginPage && <Sidebar />}
       
-      {/* 🚀 MAIN CONTENT FIX:
-        - ml-0: Mobile par margin nahi hoga (Content full width dikhega).
-        - md:ml-64: Laptop/Desktop (md breakpoint) par 64 units ka margin left se aayega.
-        - transition-all: Layout change hone par smooth transition dega.
-      */}
-      <div className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ${showSidebar ? 'ml-0 md:ml-64' : 'ml-0'}`}>
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {children}
       </div>
     </div>
@@ -67,7 +62,7 @@ function App() {
             } 
           />
 
-          {/* Fallback to Home */}
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </LayoutWrapper>
