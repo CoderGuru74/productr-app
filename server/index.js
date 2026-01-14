@@ -7,36 +7,24 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. DYNAMIC CORS CONFIGURATION
- * Allows your Vercel frontend to communicate with this server from any device.
+ * 1. UNIVERSAL CORS CONFIGURATION
+ * origin: true allows any domain (Vercel, Localhost, etc.) to connect.
+ * This is the safest way to fix "Error connecting to server" on mobile.
  */
-const allowedOrigins = [
-  "https://productr-app.vercel.app",
-  "https://productr-app-coderguru74s-projects.vercel.app",
-  "http://localhost:3000"
-];
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(new Error('CORS Policy Blocked'), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true
+  origin: true, 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 /**
- * 2. PREFLIGHT HANDSHAKE MIDDLEWARE
- * This fixes the "Connection Error" on mobile browsers (Safari/Chrome Mobile).
+ * 2. MANUAL PREFLIGHT HANDSHAKE
+ * Mobile browsers (Safari/Chrome) send an "OPTIONS" request first.
+ * If the server doesn't respond with 200 OK, the phone blocks the connection.
  */
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -49,13 +37,14 @@ app.use((req, res, next) => {
 
 
 
-// Middleware for parsing requests
+// Middleware for parsing data
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 /**
  * 3. HEALTH CHECK ROUTE
- * Test this on your phone: https://productr-app.onrender.com/health
+ * If you visit https://productr-app.onrender.com/health on your phone 
+ * and see "OK", your server is officially reachable from the internet.
  */
 app.get('/health', (req, res) => {
   res.status(200).send("OK");
@@ -94,7 +83,7 @@ const transporter = nodemailer.createTransport({
   secure: true, 
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS // 16-character App Password
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -106,13 +95,13 @@ app.post('/send-otp', async (req, res) => {
 
   try {
     const otp = Math.floor(100000 + Math.random() * 900000);
-    otpStore[email.trim()] = otp;
+    otpStore[email.trim().toLowerCase()] = otp;
     
-    console.log(`📨 Sending OTP ${otp} to ${email}`);
+    console.log(`📨 Attempting to send OTP: ${otp} to ${email}`);
 
     await transporter.sendMail({
       from: `"Productr App" <${process.env.EMAIL_USER}>`,
-      to: email.trim(),
+      to: email.trim().toLowerCase(),
       subject: 'Your Productr Login Code',
       html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
               <h2 style="color: #00147B;">Verification Code</h2>
@@ -130,31 +119,13 @@ app.post('/send-otp', async (req, res) => {
 
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
-  if (otpStore[email.trim()] && String(otpStore[email.trim()]) === String(otp)) {
-    delete otpStore[email.trim()]; 
+  const userEmail = email.trim().toLowerCase();
+  
+  if (otpStore[userEmail] && String(otpStore[userEmail]) === String(otp)) {
+    delete otpStore[userEmail]; 
     res.status(200).json({ success: true, message: "Login successful" });
   } else {
     res.status(400).json({ success: false, error: "Invalid OTP code" });
-  }
-});
-
-// Product Routes
-app.get('/products/:email', async (req, res) => {
-  try {
-    const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
-    res.status(200).json(products);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/products', async (req, res) => {
-  try {
-    const newProduct = new Product(req.body); 
-    const savedProduct = await newProduct.save();
-    res.status(201).json(savedProduct);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to create product" });
   }
 });
 
