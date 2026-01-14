@@ -3,33 +3,41 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
 import Products from './pages/Products';
-import Login from './pages/Login';
+// ✅ Updated import to match your LoginOTP component
+import LoginOTP from './pages/LoginOTP';
 
 /**
  * ProtectedRoute Component
- * This now checks localStorage every time the route is accessed.
+ * Checks for userEmail in localStorage. 
+ * If missing, redirects to login page.
  */
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('userEmail');
-  // If not logged in, send them to login page
-  return isAuthenticated ? children : <Navigate to="/login-otp" replace />;
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login-otp" replace />;
+  }
+  
+  return children;
 };
 
 /**
  * LayoutWrapper Component
- * Handles the conditional rendering of the Sidebar based on current state.
+ * Controls Sidebar visibility and page layout.
  */
 const LayoutWrapper = ({ children }) => {
   const location = useLocation();
   const isAuthenticated = !!localStorage.getItem('userEmail');
+  
+  // Sidebar should only show if user is authenticated AND not on the login page
   const isLoginPage = location.pathname === '/login-otp';
+  const showSidebar = isAuthenticated && !isLoginPage;
 
   return (
     <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden">
-      {/* Sidebar only shows if user is logged in AND not on login page */}
-      {isAuthenticated && !isLoginPage && <Sidebar />}
+      {showSidebar && <Sidebar />}
       
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className={`flex-1 flex flex-col h-full overflow-hidden ${!showSidebar ? 'w-full' : ''}`}>
         {children}
       </div>
     </div>
@@ -41,10 +49,10 @@ function App() {
     <Router>
       <LayoutWrapper>
         <Routes>
-          {/* Public Route */}
-          <Route path="/login-otp" element={<Login />} />
+          {/* Public Login Route */}
+          <Route path="/login-otp" element={<LoginOTP />} />
           
-          {/* Protected Routes */}
+          {/* Protected Main Routes */}
           <Route 
             path="/" 
             element={
@@ -53,6 +61,7 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          
           <Route 
             path="/products" 
             element={
@@ -62,7 +71,7 @@ function App() {
             } 
           />
 
-          {/* Fallback */}
+          {/* Fallback: If route doesn't exist, send to Home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </LayoutWrapper>

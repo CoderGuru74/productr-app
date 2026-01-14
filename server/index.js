@@ -7,18 +7,18 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. CRASH-PROOF CORS & PREFLIGHT
- * We use a standard middleware function instead of app.options()
- * to avoid the PathError / Missing Parameter crash in Node 22.
+ * 1. UPDATED CORS CONFIGURATION
+ * Added your specific Vercel path to the allowed origins.
  */
 const allowedOrigins = [
   "https://productr-app.vercel.app",
+  "https://productr-app-coderguru74s-projects.vercel.app",
   "http://localhost:3000"
 ];
 
-// Standard CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) === -1) {
       return callback(new Error('CORS Policy Block'), false);
@@ -28,25 +28,21 @@ app.use(cors({
   credentials: true
 }));
 
-// Manual Middleware to catch the "OPTIONS" preflight and set headers
-// This replaces the crashing app.options('(.*)') line
+// Manual Middleware for Preflight and Headers
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  // If the browser is just checking permissions (OPTIONS), send 200 and stop here
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
-
-
 
 // Payload limits for Base64 images
 app.use(express.json({ limit: '50mb' }));
@@ -80,9 +76,13 @@ let otpStore = {};
 
 /**
  * 5. NODEMAILER CONFIGURATION
+ * Ensure you use an "App Password" in your Render Environment Variables!
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -91,25 +91,42 @@ const transporter = nodemailer.createTransport({
 
 // --- API ROUTES ---
 
+/**
+ * POST: Send OTP
+ * Standardized response with success: true/false for frontend logic.
+ */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
+  if (!email) return res.status(400).json({ success: false, error: "Email is required" });
+
   try {
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[email] = otp;
     
-    console.log(`📨 OTP generated for ${email}: ${otp}`);
+    console.log(`📨 Attempting to send OTP to ${email}`);
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const info = await transporter.sendMail({
+      from: `"Productr App" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: 'Productr OTP Code',
-      text: `Your login code is ${otp}`
+      subject: 'Your Productr Login Code',
+      text: `Your login code is ${otp}. It will expire in 10 minutes.`,
+      html: `<div style="font-family: sans-serif; padding: 20px;">
+              <h2>Login Verification</h2>
+              <p>Your OTP code is: <b style="font-size: 24px; color: #000066;">${otp}</b></p>
+              <p>This code will expire in 10 minutes.</p>
+             </div>`
     });
     
+    console.log("✅ Email sent successfully:", info.response);
     res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
-    console.error("❌ Email Error:", error.message);
-    res.status(500).json({ success: false, error: "Failed to send email" });
+    // Log the full error to Render console so we can debug the 500 error
+    console.error("❌ NODEMAILER ERROR DETAIL:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Email Service Failed", 
+      details: error.message 
+    });
   }
 });
 
@@ -123,6 +140,7 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
+// Product Routes
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -148,16 +166,6 @@ app.put('/products/:id', async (req, res) => {
     res.status(200).json(updatedProduct);
   } catch (error) {
     res.status(500).json({ error: "Failed to update product" });
-  }
-});
-
-app.patch('/products/:id/status', async (req, res) => {
-  try {
-    const { status } = req.body;
-    const updated = await Product.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    res.status(200).json(updated);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
