@@ -65,7 +65,7 @@ app.post('/send-otp', async (req, res) => {
       service: 'gmail',
       auth: {
         user: 'pixelnodeofficial@gmail.com', // Aapka email
-        pass: 'vyjh miom jzjb xrvz'          // Aapka 16-digit App Password
+        pass: 'wnux dvib bgsw rllg'          // Aapka 16-digit App Password
       }
     });
 
