@@ -12,14 +12,15 @@ const Login = () => {
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  // ✅ CONSTANT RENDER LINK (NO LOCALHOST)
-  const API_BASE_URL = "https://productr-app.onrender.com";
+  // 🚩 PRODUCTION URL LOGIC
+  const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://productr-app.onrender.com';
 
-  // Auto-focus logic for the 6-digit OTP grid
   const handleOtpChange = (value, index) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
-    newOtp[index] = value.slice(-1); 
+    newOtp[index] = value;
     setOtp(newOtp);
     setError(''); 
 
@@ -38,54 +39,49 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
     try {
-      console.log("Attempting to send OTP to:", email.trim());
       const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email }),
       });
-
+      
       const data = await response.json();
 
       if (response.ok) {
-        setStep(2); // ✅ SUCCESS: Move to OTP input step
-        console.log("OTP Sent successfully");
+        setStep(2);
       } else {
-        setError(data.error || "Failed to send OTP. Please check your email.");
+        setError(data.error || "Failed to send OTP");
       }
     } catch (err) {
-      console.error("Frontend Fetch Error:", err);
-      setError("Server connection failed. Try checking " + API_BASE_URL + "/health");
+      setError("Server is waking up. Please try again in 30 seconds.");
+      console.error("Fetch Error:", err);
     } finally {
-      setLoading(false); // ✅ STOP "Processing..." animation
+      setLoading(false);
     }
   };
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
     const enteredOtp = otp.join('');
-    
     try {
       const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), otp: enteredOtp }),
+        body: JSON.stringify({ email, otp: enteredOtp }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem('userEmail', email.trim());
+        localStorage.setItem('userEmail', email);
         window.location.assign('/'); 
       } else {
-        setError(data.error || "Invalid OTP code. Please try again.");
+        setError(data.error || "Invalid OTP code");
       }
     } catch (err) {
-      setError("Verification failed. Check your internet connection.");
+      setError("Verification failed. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -95,20 +91,20 @@ const Login = () => {
     <div className="min-h-screen bg-white flex items-center justify-center font-sans overflow-hidden">
       <div className="w-full h-screen flex flex-col md:flex-row">
         
-        {/* LEFT SIDE: Image Section */}
+        {/* LEFT SIDE: Branding */}
         <div className="w-full md:w-1/2 h-full p-4 md:p-8 flex items-center justify-center">
           <div className="w-full h-full rounded-[40px] overflow-hidden relative border border-slate-100 shadow-sm">
             <div className="absolute top-8 left-8 z-10">
-              <img src={logo} alt="Productr Logo" className="h-8 md:h-10 object-contain" />
+              <img src={logo} alt="Logo" className="h-8 md:h-10 object-contain" />
             </div>
-            <img src={loginImage} alt="Branding" className="w-full h-full object-cover" />
+            <img src={loginImage} alt="Login Branding" className="w-full h-full object-cover" />
           </div>
         </div>
 
-        {/* RIGHT SIDE: Form Section */}
+        {/* RIGHT SIDE: Form */}
         <div className="w-full md:w-1/2 flex flex-col items-center justify-center px-10 md:px-20 relative bg-white">
           <div className="w-full max-w-[460px]">
-            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 text-left">
+            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 whitespace-nowrap text-left">
               {step === 1 ? "Login to your Productr Account" : "Verify Your Email"}
             </h2>
             
@@ -116,7 +112,7 @@ const Login = () => {
               {step === 1 ? (
                 <div className="space-y-2">
                   <label className="block text-[13px] font-bold text-gray-700 uppercase tracking-wide">
-                    Email address
+                    Email or Phone number
                   </label>
                   <input 
                     type="email" 
@@ -158,7 +154,7 @@ const Login = () => {
                 disabled={loading}
                 className="w-full bg-[#000066] text-white py-4 rounded-xl font-bold text-[16px] shadow-lg hover:bg-[#00004d] transition-all active:scale-[0.98] disabled:bg-gray-300"
               >
-                {loading ? "Processing..." : step === 1 ? "Get OTP" : "Verify & Login"}
+                {loading ? "Please wait..." : step === 1 ? "Get OTP" : "Verify & Login"}
               </button>
             </form>
 

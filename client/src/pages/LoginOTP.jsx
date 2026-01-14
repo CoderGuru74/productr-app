@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import promoImg from '../assets/Frame 2.png';
 
@@ -8,28 +8,18 @@ const LoginOTP = () => {
   const [step, setStep] = useState(1); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(''); 
-  const [timer, setTimer] = useState(0); 
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  // ✅ NO LOCALHOST, NO ENV VARIABLES. DIRECT RENDER LINK.
-  const API_BASE_URL = "https://productr-app.onrender.com";
-
-  useEffect(() => {
-    // Ye console check karne ke liye hai ki phone par sahi URL load hua ya nahi
-    console.log("System Check: Connecting to " + API_BASE_URL);
-    
-    let interval;
-    if (timer > 0) {
-      interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer]);
+  // 🚩 PRODUCTION URL LOGIC
+  const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://productr-app.onrender.com';
 
   const handleOtpChange = (value, index) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
-    newOtp[index] = value.slice(-1); 
+    newOtp[index] = value;
     setOtp(newOtp);
     setError(''); 
 
@@ -44,38 +34,25 @@ const LoginOTP = () => {
     }
   };
 
-  const handlePaste = (e) => {
-    const data = e.clipboardData.getData('text').trim();
-    if (data.length === 6 && /^\d+$/.test(data)) {
-      setOtp(data.split(''));
-      inputRefs.current[5].focus();
-    }
-  };
-
   const handleSendOTP = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setLoading(true);
     setError('');
-    
     try {
+      // 🚩 UPDATED URL
       const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email }),
       });
-      
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (response.ok) {
         setStep(2); 
-        setTimer(60); 
       } else {
-        setError(data.error || "Server error. Please try again.");
+        const data = await response.json();
+        setError(data.error || "Failed to send OTP");
       }
     } catch (err) {
-      // Agar ye error aaye, matlab mobile internet backend tak nahi pahunch raha
-      setError("Connection failed. Check if https://productr-app.onrender.com/health is OK");
-      console.error("Fetch error:", err);
+      setError("Server is waking up. Try again in 10s.");
     } finally {
       setLoading(false);
     }
@@ -88,22 +65,24 @@ const LoginOTP = () => {
     const enteredOtp = otp.join('');
 
     try {
+      // 🚩 UPDATED URL
       const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), otp: enteredOtp }),
+        body: JSON.stringify({ email: email, otp: enteredOtp }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        localStorage.setItem('userEmail', email.trim());
+      if (response.ok) {
+        localStorage.setItem('userEmail', email);
+        console.log("✅ Verified. Redirecting...");
         window.location.assign('/'); 
       } else {
-        setError(data.error || "Invalid OTP code.");
+        setError(data.error || "Please enter a valid OTP");
       }
     } catch (err) {
-      setError("Connection error. Please try again.");
+      setError("Connection error. Is server live?");
     } finally {
       setLoading(false);
     }
@@ -120,38 +99,55 @@ const LoginOTP = () => {
             <div className="absolute top-10 left-10 z-10">
                <div className="flex items-center gap-1">
                  <span className="text-[#00147B] font-black text-xl tracking-tighter">Productr</span>
+                 <div className="w-4 h-4 bg-orange-500 rounded-full opacity-80"></div>
                </div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-[280px] h-[360px] bg-gradient-to-b from-orange-400 to-orange-600 rounded-[45px] shadow-2xl flex flex-col items-center justify-end pb-12 px-6 text-center border-[6px] border-orange-300/20">
+                <p className="text-white font-extrabold text-[22px] leading-tight">
+                  Uplist your <br /> product to market
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* RIGHT PANEL */}
         <div className="flex-1 flex flex-col justify-center px-10 md:px-16 relative bg-white">
-          <div className="w-full max-sm mx-auto">
-            <h2 className="text-[24px] font-bold text-[#001D4D] mb-10 tracking-tight">
-              {step === 1 ? "Login to your Account" : "Enter Verification Code"}
+          <div className="w-full max-w-sm mx-auto">
+            <h2 className="text-[24px] font-bold text-[#001D4D] mb-10 tracking-tight whitespace-nowrap">
+              {step === 1 ? "Login to your Productr Account" : "Verify Your Email"}
             </h2>
 
-            <form onSubmit={step === 1 ? handleSendOTP : handleVerifyOTP} className="space-y-8">
-              {step === 1 ? (
+            {step === 1 ? (
+              <form onSubmit={handleSendOTP} className="space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[11px] font-bold text-slate-800 uppercase tracking-[1px]">Email address</label>
+                  <label className="text-[11px] font-bold text-slate-800 uppercase tracking-[1px]">Email or Phone number</label>
                   <input 
-                    type="email" required placeholder="Enter email address" 
-                    className="w-full p-4 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#00147B]"
-                    value={email} onChange={(e) => setEmail(e.target.value)}
+                    type="email" 
+                    required 
+                    placeholder="Enter email address" 
+                    className="w-full p-4 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#00147B] transition-all placeholder:text-slate-300"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
-              ) : (
+                <button type="submit" disabled={loading} className="w-full bg-[#00147B] text-white py-4 rounded-xl font-bold text-sm shadow-xl active:scale-[0.98] transition-all disabled:opacity-50">
+                  {loading ? "Sending..." : "Get OTP"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOTP} className="space-y-10">
                 <div className="space-y-4">
-                  <label className="text-[11px] font-bold text-slate-800 uppercase tracking-[1px]">OTP sent to {email}</label>
+                  <label className="text-[11px] font-bold text-slate-800 uppercase tracking-[1px]">Enter OTP</label>
                   <div className="flex justify-between gap-2.5">
                     {otp.map((digit, index) => (
                       <input
-                        key={index} type="text" inputMode="numeric" maxLength="1"
+                        key={index}
+                        type="text"
+                        maxLength="1"
                         ref={el => inputRefs.current[index] = el}
-                        onPaste={handlePaste}
-                        className={`w-12 h-12 md:w-14 md:h-14 border-2 rounded-xl text-center font-bold text-xl outline-none ${
+                        className={`w-12 h-12 md:w-14 md:h-14 border-2 rounded-xl text-center font-bold text-xl outline-none transition-all ${
                           error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-[#00147B]'
                         }`}
                         value={digit}
@@ -160,16 +156,30 @@ const LoginOTP = () => {
                       />
                     ))}
                   </div>
+                  {error && (
+                    <p className="text-red-500 text-[11px] font-bold mt-2">
+                      {error}
+                    </p>
+                  )}
                 </div>
-              )}
-
-              {error && <p className="text-red-500 text-[11px] font-bold">{error}</p>}
-
-              <button type="submit" disabled={loading} className="w-full bg-[#00147B] text-white py-4.5 rounded-xl font-bold text-sm shadow-xl disabled:opacity-50">
-                {loading ? "Please wait..." : step === 1 ? "Get OTP" : "Verify & Login"}
-              </button>
-            </form>
+                <button type="submit" disabled={loading} className="w-full bg-[#00147B] text-white py-4 rounded-xl font-bold text-sm shadow-xl active:scale-[0.98] transition-all">
+                  {loading ? "Verifying..." : "Verify & Login"}
+                </button>
+                <p className="text-center text-[12px] text-slate-400 font-semibold">
+                  Didn't receive OTP? <button type="button" onClick={() => setStep(1)} className="text-[#00147B] font-bold ml-1 hover:underline">Resend</button>
+                </p>
+              </form>
+            )}
           </div>
+
+          {step === 1 && (
+            <div className="absolute bottom-12 left-0 right-0 flex justify-center px-10">
+              <div className="w-full max-w-[340px] border border-slate-100 rounded-2xl py-4.5 text-center bg-slate-50/50 text-[13px] shadow-sm">
+                <span className="text-slate-400 font-medium">Don't have a Account? </span>
+                <button className="text-[#00147B] font-extrabold ml-1 hover:underline">SignUp Here</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -21,19 +21,20 @@ const Products = () => {
     name: '', category: 'Foods', quantityStock: '', mrp: '', sellingPrice: '', brandName: '', isReturnable: 'Yes', images: []
   });
 
-  // 1. DYNAMIC EMAIL RETRIEVAL
-  // We pull the email saved during the OTP login process from localStorage
+  // 🚩 PRODUCTION URL LOGIC
+  const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://productr-app.onrender.com';
+
   const userEmail = localStorage.getItem('userEmail'); 
 
   const fetchProducts = async () => {
-    // Only fetch if a user is logged in
     if (!userEmail) return; 
-
     try {
-      // 2. FILTERED FETCH: Requesting products specific to this email
-      const response = await fetch(`http://localhost:5000/products/${userEmail}`);
+      const response = await fetch(`${API_BASE_URL}/products/${userEmail}`);
       const data = await response.json();
-      setProducts(data);
+      // Ensure data is an array
+      setProducts(Array.isArray(data) ? data : []);
     } catch (err) { 
       console.error("Fetch error:", err); 
     }
@@ -41,7 +42,7 @@ const Products = () => {
 
   useEffect(() => { 
     fetchProducts(); 
-  }, [userEmail]); // Refetch if the user changes
+  }, [userEmail]);
 
   const validateForm = () => {
     let tempErrors = {};
@@ -56,15 +57,15 @@ const Products = () => {
     return Object.keys(tempErrors).length === 0;
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.brandName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = Array.isArray(products) ? products.filter(p => 
+    (p.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (p.brandName?.toLowerCase().includes(searchQuery.toLowerCase()))
+  ) : [];
 
   const togglePublishStatus = async (product) => {
     const newStatus = product.status === 'Published' ? 'Unpublished' : 'Published';
     try {
-      const response = await fetch(`http://localhost:5000/products/${product._id}/status`, {
+      const response = await fetch(`${API_BASE_URL}/products/${product._id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -75,12 +76,14 @@ const Products = () => {
         fetchProducts(); 
         setTimeout(() => setShowToast(false), 3000);
       }
-    } catch (err) { alert("Update failed"); }
+    } catch (err) { console.error("Update failed"); }
   };
 
   const handleDeleteProduct = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/products/${productToDelete._id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/products/${productToDelete._id}`, { 
+        method: 'DELETE' 
+      });
       if (response.ok) {
         setShowDeleteModal(false);
         fetchProducts();
@@ -88,20 +91,21 @@ const Products = () => {
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
       }
-    } catch (err) { alert("Delete failed"); }
+    } catch (err) { console.error("Delete failed"); }
   };
 
   const handleSaveOrUpdate = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
     setLoading(true);
-    const url = editingProduct ? `http://localhost:5000/products/${editingProduct._id}` : 'http://localhost:5000/products';
+    
+    const url = editingProduct ? `${API_BASE_URL}/products/${editingProduct._id}` : `${API_BASE_URL}/products`;
     const method = editingProduct ? 'PUT' : 'POST';
+    
     try {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        // 3. SECURE SAVE: Explicitly sending the current userEmail with the product
         body: JSON.stringify({ ...form, userEmail }),
       });
       if (response.ok) {
@@ -111,7 +115,10 @@ const Products = () => {
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
       }
-    } catch (err) { alert("Error saving"); }
+    } catch (err) { 
+        console.error("Save error:", err);
+        alert("Error saving product"); 
+    }
     finally { setLoading(false); }
   };
 
@@ -167,7 +174,7 @@ const Products = () => {
         <header className="bg-white border-b border-slate-100 flex-shrink-0 h-14 mt-14 z-10">
           <div className="h-full flex items-center justify-between px-8">
             <div className="flex items-center gap-2 text-[18px] font-bold text-[#445069]">
-               <img src={productIcon} alt="Icon" className="w-5 h-5" /> Products
+                <img src={productIcon} alt="Icon" className="w-5 h-5" /> Products
             </div>
             <button onClick={openAddModal} className="flex items-center gap-2 text-[#445069] font-medium text-[18px] hover:text-[#1D35D9] transition-colors">
                 <span className="text-[22px] font-light text-[#94a3b8]">+</span> Add Products
@@ -187,7 +194,7 @@ const Products = () => {
                 </svg>
               </div>
               <h2 className="text-[#445069] text-xl font-bold mb-2">Feels a little empty over here...</h2>
-              <p className="text-[#94a3b8] text-sm max-w-sm mb-8 leading-relaxed">You can create products without connecting store <br /> you can add products to store anytime</p>
+              <p className="text-[#94a3b8] text-sm max-w-sm mb-8 leading-relaxed">You can create products without connecting store</p>
               <button onClick={openAddModal} className="bg-[#001D9D] text-white px-20 py-3 rounded-lg font-bold text-sm shadow-md">Add your Products</button>
             </div>
           ) : (
@@ -215,7 +222,6 @@ const Products = () => {
                         <div className="flex justify-between items-baseline"><span>MRP-</span><div className="flex-grow border-b border-dotted border-slate-200 mx-2 self-center"></div><span className="text-slate-800 font-medium">₹ {p.mrp}</span></div>
                         <div className="flex justify-between items-baseline"><span>Selling Price -</span><div className="flex-grow border-b border-dotted border-slate-200 mx-2 self-center"></div><span className="text-slate-800 font-medium">₹ {p.sellingPrice}</span></div>
                         <div className="flex justify-between items-baseline"><span>Brand Name -</span><div className="flex-grow border-b border-dotted border-slate-200 mx-2 self-center"></div><span className="text-slate-800 font-medium">{p.brandName}</span></div>
-                        <div className="flex justify-between items-baseline pt-2 mt-2 border-t border-slate-50"><span>Exchange Eligibility -</span><div className="flex-grow border-b border-dotted border-slate-200 mx-2 self-center"></div><span className="text-slate-800 font-medium">.{p.isReturnable.toUpperCase()}</span></div>
                       </div>
 
                       <div className="flex gap-2 mt-6">
@@ -232,17 +238,19 @@ const Products = () => {
         </main>
       </div>
 
+      {/* DELETE MODAL */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-lg w-full max-w-[440px] shadow-2xl p-6 relative">
             <button onClick={() => setShowDeleteModal(false)} className="absolute top-4 right-4 text-slate-400 text-2xl font-light leading-none">×</button>
             <h2 className="text-2xl font-bold text-slate-700 mb-2">Delete Product</h2>
-            <p className="text-slate-500 text-[15px] mb-10 leading-relaxed">Are you sure you really want to delete this Product <br /><span className="font-bold text-slate-700">“ {productToDelete?.name} ” ?</span></p>
+            <p className="text-slate-500 text-[15px] mb-10 leading-relaxed">Are you sure you want to delete <span className="font-bold text-slate-700">“{productToDelete?.name}”</span>?</p>
             <div className="flex justify-end"><button onClick={handleDeleteProduct} className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-sm">Delete</button></div>
           </div>
         </div>
       )}
 
+      {/* ADD/EDIT MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-lg w-full max-w-[420px] shadow-2xl flex flex-col max-h-[95vh] overflow-hidden">
@@ -256,48 +264,43 @@ const Products = () => {
                 <input type="text" value={form.name} onChange={(e)=>{setForm({...form, name: e.target.value}); if(errors.name) setErrors({...errors, name: null})}} className={`w-full p-2.5 rounded-md border ${errors.name ? 'border-red-500 bg-red-50' : 'border-slate-200'} text-sm outline-none`} placeholder="CakeZone Walnut Brownie" />
                 {errors.name && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.name}</span>}
               </div>
-              <div className="flex flex-col"><label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Product Type</label><select value={form.category} onChange={(e)=>setForm({...form, category: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none"><option value="Foods">Foods</option><option value="Electronics">Electronics</option></select></div>
+              <div className="flex flex-col">
+                <label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Product Type</label>
+                <select value={form.category} onChange={(e)=>setForm({...form, category: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none">
+                  <option value="Foods">Foods</option>
+                  <option value="Electronics">Electronics</option>
+                </select>
+              </div>
               <div className="flex flex-col">
                 <label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Quantity Stock</label>
                 <input type="text" value={form.quantityStock} onChange={(e)=>{setForm({...form, quantityStock: e.target.value}); if(errors.quantityStock) setErrors({...errors, quantityStock: null})}} className={`w-full p-2.5 rounded-md border ${errors.quantityStock ? 'border-red-500 bg-red-50' : 'border-slate-200'} text-sm outline-none`} placeholder="Total stock" />
                 {errors.quantityStock && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.quantityStock}</span>}
               </div>
               <div className="flex flex-col">
-                <label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">MRP</label>
-                <input type="text" value={form.mrp} onChange={(e)=>{setForm({...form, mrp: e.target.value}); if(errors.mrp) setErrors({...errors, mrp: null})}} className={`w-full p-2.5 rounded-md border ${errors.mrp ? 'border-red-500 bg-red-50' : 'border-slate-200'} text-sm outline-none`} placeholder="₹" />
-                {errors.mrp && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.mrp}</span>}
-              </div>
-              <div className="flex flex-col">
-                <label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Selling Price</label>
-                <input type="text" value={form.sellingPrice} onChange={(e)=>{setForm({...form, sellingPrice: e.target.value}); if(errors.sellingPrice) setErrors({...errors, sellingPrice: null})}} className={`w-full p-2.5 rounded-md border ${errors.sellingPrice ? 'border-red-500 bg-red-50' : 'border-slate-200'} text-sm outline-none`} placeholder="₹" />
-                {errors.sellingPrice && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.sellingPrice}</span>}
-              </div>
-              <div className="flex flex-col">
-                <label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Brand Name</label>
-                <input type="text" value={form.brandName} onChange={(e)=>{setForm({...form, brandName: e.target.value}); if(errors.brandName) setErrors({...errors, brandName: null})}} className={`w-full p-2.5 rounded-md border ${errors.brandName ? 'border-red-500 bg-red-50' : 'border-slate-200'} text-sm outline-none`} placeholder="Brand" />
-                {errors.brandName && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.brandName}</span>}
-              </div>
-              <div className="flex flex-col">
-                <div className="flex justify-between items-center mb-1"><label className="text-[11px] font-bold text-slate-500 uppercase">Upload Images</label><label htmlFor="file-input" className="text-[10px] font-bold text-slate-700 underline cursor-pointer">Add Photos</label></div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Upload Images</label>
+                  <label htmlFor="file-input" className="text-[10px] font-bold text-slate-700 underline cursor-pointer">Add Photos</label>
+                </div>
                 <input id="file-input" type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange} />
                 <div className={`w-full border border-dashed ${errors.images ? 'border-red-500 bg-red-50' : 'border-slate-300'} rounded-lg p-3 min-h-[90px] flex items-center justify-center bg-white`}>
-                  {form.images.length === 0 ? <label htmlFor="file-input" className="cursor-pointer py-2 flex flex-col items-center"><span className="text-slate-400 text-[11px]">Browse</span></label> : <div className="flex flex-wrap gap-2.5 w-full">{form.images.map((img, idx) => (<div key={idx} className="w-16 h-16 rounded border border-slate-100 p-1 bg-white relative group"><img src={img} className="w-full h-full object-contain" alt="preview" /><button type="button" onClick={() => setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))} className="absolute -top-1.5 -right-1.5 bg-white text-slate-400 border border-slate-200 w-4 h-4 rounded-full flex items-center justify-center text-[10px] shadow-sm">×</button></div>))}</div>}
+                  {form.images.length === 0 ? <label htmlFor="file-input" className="cursor-pointer py-2 flex flex-col items-center"><span className="text-slate-400 text-[11px]">Browse</span></label> : 
+                  <div className="flex flex-wrap gap-2.5 w-full">{form.images.map((img, idx) => (<div key={idx} className="w-16 h-16 rounded border border-slate-100 p-1 bg-white relative group"><img src={img} className="w-full h-full object-contain" alt="preview" /><button type="button" onClick={() => setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))} className="absolute -top-1.5 -right-1.5 bg-white text-slate-400 border border-slate-200 w-4 h-4 rounded-full flex items-center justify-center text-[10px] shadow-sm">×</button></div>))}</div>}
                 </div>
                 {errors.images && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.images}</span>}
               </div>
-              <div className="flex flex-col"><label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Exchange Eligibility</label><select value={form.isReturnable} onChange={(e)=>setForm({...form, isReturnable: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none"><option value="Yes">Yes</option><option value="No">No</option></select></div>
             </form>
             <div className="p-4 border-t bg-slate-50 flex justify-end">
-              <button onClick={handleSaveOrUpdate} className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
-                {editingProduct ? 'Update' : 'Create'}
+              <button onClick={handleSaveOrUpdate} disabled={loading} className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
+                {loading ? 'Saving...' : editingProduct ? 'Update' : 'Create'}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* TOAST */}
       {showToast && (
-        <div className="fixed bottom-10 right-10 z-[250] bg-white border border-slate-100 rounded-lg shadow-xl px-6 py-3 flex items-center gap-3 animate-in slide-in-from-right-5">
+        <div className="fixed bottom-10 right-10 z-[250] bg-white border border-slate-100 rounded-lg shadow-xl px-6 py-3 flex items-center gap-3">
             <span className="w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
             <span className="text-slate-700 font-bold text-sm tracking-tight">{toastMsg}</span>
         </div>
