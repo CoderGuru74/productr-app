@@ -8,31 +8,30 @@ const app = express();
 
 /**
  * 1. CORS CONFIGURATION
- * Allows your Vercel frontend to talk to this Render backend.
+ * Sabhi connections allow karne ke liye.
  */
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
+app.use(cors());
+app.options('*', cors());
 app.use(express.json({ limit: '50mb' }));
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  next();
+});
 
 /**
  * 2. HEALTH CHECK
- * URL: https://productr-app.onrender.com/health
  */
-app.get('/health', (req, res) => {
-  res.status(200).send("OK - Server is Live and Healthy! ✅");
-});
+app.get('/health', (req, res) => res.status(200).send("Server is Healthy ✅"));
 
-// 3. DATABASE CONNECTION
+// 3. MONGODB CONNECTION (Keep MONGO_URI in Render only for security)
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected Successfully"))
-  .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => console.error("❌ MongoDB Error:", err.message));
 
-// 4. PRODUCT SCHEMA & MODEL
+// 4. PRODUCT SCHEMA
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, default: 'Foods' },
@@ -45,22 +44,7 @@ const Product = mongoose.model('Product', productSchema);
 // 5. OTP STORAGE
 let otpStore = {}; 
 
-// 6. NODEMAILER CONFIGURATION (Optimized for Render)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // Must be false for port 587
-  auth: {
-    user: process.env.EMAIL_USER, // pixelnodeofficial@gmail.com
-    pass: process.env.EMAIL_PASS  // vyjh miom jzjb xrvz
-  },
-  tls: {
-    rejectUnauthorized: false // Prevents connection dropping on Render
-  }
-});
-
-// 7. SEND OTP ROUTE
+// 6. SEND OTP ROUTE (With Hardcoded Gmail Credentials)
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email is required" });
@@ -72,36 +56,51 @@ app.post('/send-otp', async (req, res) => {
 
     console.log(`📨 Requesting OTP for: ${normalizedEmail}`);
 
+    /**
+     * 🚩 HARDCODED EMAIL CREDENTIALS
+     * Humne yahan direct password aur email daal diya hai 
+     * taaki Render Variables ka issue khatam ho jaye.
+     */
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: 'pixelnodeofficial@gmail.com', // Aapka email
+        pass: 'vyjh miom jzjb xrvz'          // Aapka 16-digit App Password
+      }
+    });
+
+    // Pehle connection check karte hain
+    await transporter.verify();
+
     const mailOptions = {
-      from: `"Productr App" <${process.env.EMAIL_USER}>`,
+      from: `"Productr App" <pixelnodeofficial@gmail.com>`,
       to: normalizedEmail,
       subject: 'Login OTP Verification',
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; text-align: center;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center; border: 1px solid #eee;">
           <h2 style="color: #000066;">Productr Verification</h2>
           <p>Your verification code is:</p>
-          <h1 style="color: #000066; font-size: 48px; letter-spacing: 5px;">${otp}</h1>
-          <p>This code is valid for a limited time.</p>
+          <h1 style="color: #000066; font-size: 40px;">${otp}</h1>
+          <p>If you didn't request this, please ignore this email.</p>
         </div>
       `
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ Success: OTP sent to ${normalizedEmail}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Success! OTP sent: ${info.response}`);
     
     return res.status(200).json({ success: true });
 
   } catch (error) {
-    console.error("❌ NODEMAILER ERROR:", error.message);
-    // Returning 500 but with a clear message to help you debug
+    console.error("❌ NODEMAILER FATAL ERROR:", error);
     return res.status(500).json({ 
       success: false, 
-      error: `Mail failed: ${error.message}` 
+      error: `Mail System Error: ${error.message}` 
     });
   }
 });
 
-// 8. VERIFY OTP ROUTE
+// 7. VERIFY OTP ROUTE
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   const userEmail = email.trim().toLowerCase();
@@ -111,11 +110,11 @@ app.post('/verify-otp', (req, res) => {
     console.log(`✅ OTP Verified for ${userEmail}`);
     return res.status(200).json({ success: true });
   } else {
-    return res.status(400).json({ success: false, error: "Invalid or expired OTP" });
+    return res.status(400).json({ success: false, error: "Invalid OTP code" });
   }
 });
 
-// 9. PRODUCT ROUTES
+// 8. PRODUCT ROUTES
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -135,7 +134,7 @@ app.post('/products', async (req, res) => {
   }
 });
 
-// 10. START SERVER
+// 9. START SERVER
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server Live on Port ${PORT}`);
