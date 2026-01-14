@@ -5,18 +5,20 @@ import logo from '../assets/Frame 4.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']); // Array for 6-digit grid
-  const [step, setStep] = useState(1); 
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); 
+  const [step, setStep] = useState(1);  
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(''); 
+  const [error, setError] = useState('');  
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  // Auto-focus logic for the 6-digit OTP grid
+  // 🔥 YAHAN CHANGE HAI: Localhost ko hamesha ke liye hata diya gaya hai
+  const API_BASE_URL = "https://productr-app.onrender.com";
+
   const handleOtpChange = (value, index) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = value.slice(-1); // Only take the last character
     setOtp(newOtp);
     setError(''); 
 
@@ -36,10 +38,11 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/send-otp', {
+      // ✅ Ab ye Render ka link use karega
+      const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
       if (response.ok) {
         setStep(2);
@@ -48,7 +51,7 @@ const Login = () => {
         setError(data.error || "Failed to send OTP");
       }
     } catch (err) {
-      setError("Error connecting to server.");
+      setError("Error connecting to server. Check: " + API_BASE_URL + "/health");
     } finally {
       setLoading(false);
     }
@@ -59,19 +62,17 @@ const Login = () => {
     setLoading(true);
     const enteredOtp = otp.join('');
     try {
-      const response = await fetch('http://localhost:5000/verify-otp', {
+      // ✅ Ab ye Render ka link use karega
+      const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: enteredOtp }),
+        body: JSON.stringify({ email: email.trim(), otp: enteredOtp }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // 1. SAVE to localStorage so App.jsx knows you are logged in
-        localStorage.setItem('userEmail', email);
-        
-        // 2. FORCE REFRESH to root so App.jsx state resets and shows Sidebar
+        localStorage.setItem('userEmail', email.trim());
         window.location.assign('/'); 
       } else {
         setError(data.error || "Invalid OTP");
@@ -87,14 +88,12 @@ const Login = () => {
     <div className="min-h-screen bg-white flex items-center justify-center font-sans overflow-hidden">
       <div className="w-full h-screen flex flex-col md:flex-row">
         
-        {/* LEFT SIDE: Image Section with Logo Overlay */}
+        {/* LEFT SIDE: Image Section */}
         <div className="w-full md:w-1/2 h-full p-4 md:p-8 flex items-center justify-center">
           <div className="w-full h-full rounded-[40px] overflow-hidden relative border border-slate-100 shadow-sm">
-            {/* LOGO Overlay */}
             <div className="absolute top-8 left-8 z-10">
               <img src={logo} alt="Productr Logo" className="h-8 md:h-10 object-contain" />
             </div>
-            {/* MAIN BRANDING IMAGE */}
             <img src={loginImage} alt="Branding" className="w-full h-full object-cover" />
           </div>
         </div>
@@ -110,13 +109,13 @@ const Login = () => {
               {step === 1 ? (
                 <div className="space-y-2">
                   <label className="block text-[13px] font-bold text-gray-700 uppercase tracking-wide">
-                    Email or Phone number
+                    Email address
                   </label>
                   <input 
                     type="email" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter email or phone number"
+                    placeholder="Enter email address"
                     className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-200 transition-all placeholder:text-gray-300 text-[15px]"
                     required
                   />
@@ -156,7 +155,7 @@ const Login = () => {
               </button>
             </form>
 
-            {/* Bottom Section: SignUp Link */}
+            {/* Bottom Section */}
             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-[380px] border border-gray-100 rounded-[20px] p-5 text-center bg-gray-50/40">
               <p className="text-gray-400 text-[13px] font-medium">
                 Don't have a Productr Account? <button type="button" className="text-[#000066] font-extrabold ml-1 hover:underline">SignUp Here</button>
