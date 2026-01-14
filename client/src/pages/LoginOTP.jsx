@@ -12,8 +12,8 @@ const LoginOTP = () => {
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  // ✅ CONFIG: Points to your LIVE Render Backend
-  const API_BASE_URL = "https://productr-app.onrender.com";
+ // ✅ This line now automatically picks up the URL from Vercel's settings
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://productr-app.onrender.com";
 
   // Handle countdown for resend button
   useEffect(() => {
