@@ -7,26 +7,30 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. FIXED CORS CONFIGURATION
- * Allows your Vercel frontend to talk to this Render backend.
+ * 1. DYNAMIC CORS CONFIGURATION
+ * This allows your Vercel app to talk to Render from any device.
  */
 const allowedOrigins = [
   "https://productr-app.vercel.app",
-  "http://localhost:3000"
+  "http://localhost:3000" // Allowed for your local development
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(new Error('CORS Policy Blocked'), false);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log("CORS Blocked for origin:", origin);
+      callback(new Error('Not allowed by CORS'));
     }
-    return callback(null, true);
   },
   credentials: true
 }));
 
-// Manual Middleware for Preflight (Prevents 502/CORS errors on Node 22)
+// Manual Headers for Preflight (Crucial for mobile browsers and Node 22)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
@@ -42,14 +46,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Payload limits for Base64 image strings
+
+
+// Payload limits for Base64 images
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-/**
- * 2. MONGODB CONNECTION
- * Pulls from the environment variable (MONGO_URI)
- */
+// 2. MONGODB ATLAS CONNECTION
 const mongoURI = process.env.MONGO_URI;
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
@@ -77,7 +80,7 @@ let otpStore = {};
 
 /**
  * 5. NODEMAILER CONFIGURATION
- * Pulls from EMAIL_USER and EMAIL_PASS environment variables.
+ * Using Port 465 for SSL - most reliable on Render.
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -100,20 +103,21 @@ app.post('/send-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[email] = otp;
     
-    console.log(`📨 Attempting to send OTP: ${otp} to ${email}`);
+    console.log(`📨 Request received: Sending OTP ${otp} to ${email}`);
 
     await transporter.sendMail({
       from: `"Productr App" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Your Productr Login Code',
       text: `Your login code is ${otp}.`,
-      html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-              <h2 style="color: #00147B;">Verification Code</h2>
-              <p>Your OTP code is: <b style="font-size: 28px; color: #00147B;">${otp}</b></p>
-              <p style="color: #666; font-size: 12px;">This code will expire shortly.</p>
+      html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+              <h2 style="color: #00147B;">Login Verification</h2>
+              <p>Your OTP code is: <b style="font-size: 24px; color: #00147B;">${otp}</b></p>
+              <p>If you did not request this, please ignore this email.</p>
              </div>`
     });
     
+    console.log(`✅ OTP successfully sent to ${email}`);
     res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
     console.error("❌ NODEMAILER ERROR:", error.message);
@@ -123,6 +127,8 @@ app.post('/send-otp', async (req, res) => {
 
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
+  console.log(`🔍 Verification attempt: ${email} with OTP ${otp}`);
+
   if (otpStore[email] && String(otpStore[email]) === String(otp)) {
     delete otpStore[email]; 
     res.status(200).json({ success: true, message: "Login successful" });
@@ -131,6 +137,7 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
+// Product Routes
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -150,18 +157,9 @@ app.post('/products', async (req, res) => {
   }
 });
 
-app.delete('/products/:id', async (req, res) => {
-  try {
-    await Product.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: "Product deleted" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // 6. START SERVER
-// On Render, we MUST use 0.0.0.0 and the PORT variable provided by the platform.
+// Using 0.0.0.0 and process.env.PORT is required for Render to work on all devices.
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server is officially listening on 0.0.0.0:${PORT}`);
+  console.log(`🚀 Server is live on 0.0.0.0:${PORT}`);
 });

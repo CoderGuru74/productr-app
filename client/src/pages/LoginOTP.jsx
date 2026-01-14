@@ -13,7 +13,7 @@ const LoginOTP = () => {
   const inputRefs = useRef([]);
 
  // ✅ This line now automatically picks up the URL from Vercel's settings
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://productr-app.onrender.com";
+ const API_BASE_URL = "https://productr-app.onrender.com";
 
   // Handle countdown for resend button
   useEffect(() => {
