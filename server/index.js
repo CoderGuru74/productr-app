@@ -1,4 +1,4 @@
-require('dotenv').config(); 
+require('dotenv').config(); // Load variables from .env
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
@@ -7,55 +7,17 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. FIXED CORS & PREFLIGHT
- * Standardized origins to match Vercel production and local testing.
- * Removed trailing slashes as they cause CORS mismatches.
+ * 1. PAYLOAD CONFIGURATION
+ * High limits are essential for Base64 image strings.
  */
-const allowedOrigins = [
-  "https://productr-app.vercel.app",
-  "http://localhost:3000"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      var msg = 'The CORS policy for this site does not ' +
-                'allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
-
-// Manual catch-all for OPTIONS preflight (Standard for Node 22+)
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-
-
-// Payload limits for Base64 images
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cors());
 
 // 2. MONGODB ATLAS CONNECTION
+// Using variable from .env
 const mongoURI = process.env.MONGO_URI;
+
 mongoose.connect(mongoURI)
   .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
@@ -77,63 +39,42 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 
-// 4. OTP Storage (Temporary memory)
+// 4. USER SCHEMA
+const User = mongoose.model('User', new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now }
+}));
+
+// 5. OTP Storage (Temporary memory)
 let otpStore = {}; 
 
 /**
- * 5. NODEMAILER CONFIGURATION
- * Render sometimes blocks port 587. Using Port 465 with SSL is more robust.
+ * 6. NODEMAILER CONFIGURATION
+ * Using variables from .env
  */
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, 
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS // MUST be a 16-character Google App Password
+    pass: process.env.EMAIL_PASS
   }
 });
 
 // --- API ROUTES ---
 
-app.post('/send-otp', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ success: false, error: "Email is required" });
-
+// Create Product
+app.post('/products', async (req, res) => {
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    otpStore[email] = otp;
-    
-    console.log(`📨 Generating OTP: ${otp} for ${email}`);
-
-    await transporter.sendMail({
-      from: `"Productr App" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Your Productr Login Code',
-      text: `Your login code is ${otp}.`,
-      html: `<b>Your login code is ${otp}</b>`
-    });
-    
-    console.log("✅ Email sent successfully");
-    res.status(200).json({ success: true, message: "OTP sent" });
+    const newProduct = new Product(req.body); 
+    const savedProduct = await newProduct.save();
+    console.log("✨ Product Created:", savedProduct.name);
+    res.status(201).json(savedProduct);
   } catch (error) {
-    console.error("❌ NODEMAILER ERROR:", error.message);
-    res.status(500).json({ success: false, error: "Email service failed", details: error.message });
+    res.status(500).json({ error: "Failed to create product", details: error.message });
   }
 });
 
-app.post('/verify-otp', async (req, res) => {
-  const { email, otp } = req.body;
-  if (otpStore[email] && String(otpStore[email]) === String(otp)) {
-    delete otpStore[email]; 
-    res.status(200).json({ success: true, message: "Login successful" });
-  } else {
-    res.status(400).json({ success: false, error: "Invalid OTP code" });
-  }
-});
-
-// Standard Product Routes
+// Fetch Products
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
@@ -143,24 +84,79 @@ app.get('/products/:email', async (req, res) => {
   }
 });
 
-app.post('/products', async (req, res) => {
+// Update Product
+app.put('/products/:id', async (req, res) => {
   try {
-    const newProduct = new Product(req.body); 
-    const savedProduct = await newProduct.save();
-    res.status(201).json(savedProduct);
+    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.status(200).json(updatedProduct);
   } catch (error) {
-    res.status(500).json({ error: "Failed to create product" });
+    res.status(500).json({ error: "Failed to update product" });
   }
 });
 
-// 6. START SERVER
-const PORT = process.env.PORT || 10000;
+// Toggle Status
+app.patch('/products/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const updated = await Product.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    res.status(200).json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete Product
+app.delete('/products/:id', async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Product deleted" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
- * CRITICAL RENDER FIX:
- * We explicitly bind to '0.0.0.0' so the Render gateway can find the app.
- * Using 'localhost' or '127.0.0.1' here will result in a 502 Bad Gateway.
+ * POST: Send OTP
  */
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server is officially listening on 0.0.0.0:${PORT}`);
+app.post('/send-otp', async (req, res) => {
+  const { email } = req.body;
+  try {
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    otpStore[email] = otp;
+    
+    console.log(`📨 OTP generated for ${email}: ${otp}`);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER, // Using variable from .env
+      to: email,
+      subject: 'Productr OTP Code',
+      text: `Your login code is ${otp}`
+    });
+    res.status(200).json({ message: "OTP sent" });
+  } catch (error) {
+    console.error("❌ Email Error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
+
+/**
+ * POST: Verify OTP
+ */
+app.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  
+  console.log(`🔍 Verifying: ${email} | Stored: ${otpStore[email]} | Received: ${otp}`);
+
+  if (otpStore[email] && String(otpStore[email]) === String(otp)) {
+    console.log("✅ OTP Verified Successfully");
+    delete otpStore[email]; 
+    res.status(200).json({ message: "Login successful" });
+  } else {
+    console.log("❌ Invalid OTP Attempt");
+    res.status(400).json({ error: "Please enter a valid OTP" });
+  }
+});
+
+// Using dynamic port for deployment
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
