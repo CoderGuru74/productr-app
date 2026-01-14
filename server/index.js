@@ -9,25 +9,28 @@ const app = express();
 app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: '50mb' }));
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ DB Connected")).catch(e => console.log("❌ DB Error"));
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ DB Connected"))
+  .catch(e => console.log("❌ DB Error"));
 
 let otpStore = {}; 
 
-// 🚩 THE RENDER BYPASS CONFIG
+// 🚩 THE "RENDER-PROOF" CONFIG
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
-  secure: true, // SSL use karenge kyunki Render par yahi chalta hai
+  secure: true, // SSL/TLS is more stable on Render
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  tls: {
-    rejectUnauthorized: false // Security check bypass for Render IP
-  }
+  pool: true, // Connection ko zinda rakhta hai
+  maxConnections: 1,
+  rateDelta: 20000,
+  rateLimit: 1
 });
 
-app.get('/', (req, res) => res.status(200).send("Backend is Active! 🚀"));
+app.get('/', (req, res) => res.status(200).send("Backend Active! 🚀"));
 
 app.post('/send-otp', (req, res) => {
   const { email } = req.body;
@@ -37,22 +40,22 @@ app.post('/send-otp', (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000);
   otpStore[normalizedEmail] = otp;
 
-  console.log(`📨 Attempting delivery to: ${normalizedEmail}`);
+  console.log(`📨 Delivery Triggered for: ${normalizedEmail}`);
 
-  // Turant frontend ko free karo taaki 'Processing' na dikhata rahe
+  // 🚩 STEP 1: Turant Response bhej do (Taaki frontend timeout na ho)
   res.status(200).json({ success: true });
 
-  // Background delivery
+  // 🚩 STEP 2: Background mein mail bhej do (Wait mat karo)
   transporter.sendMail({
     from: `"Productr Support" <${process.env.EMAIL_USER}>`,
     to: normalizedEmail,
-    subject: `Login Code: ${otp}`,
+    subject: `Your Login Code: ${otp}`,
     html: `<h3>Your verification code is: <b style="font-size: 24px;">${otp}</b></h3>`
   }, (err, info) => {
-    if(err) {
-      console.log("❌ GMAIL REJECTED:", err.message);
+    if (err) {
+      console.log("❌ NODEMAILER FAILED:", err.message);
     } else {
-      console.log("✅ EMAIL DELIVERED:", info.response);
+      console.log("✅ NODEMAILER SUCCESS:", info.response);
     }
   });
 });
@@ -64,10 +67,10 @@ app.post('/verify-otp', (req, res) => {
     delete otpStore[userEmail];
     return res.status(200).json({ success: true });
   }
-  res.status(400).json({ success: false, error: "Invalid OTP" });
+  res.status(400).json({ success: false });
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server listening on port ${PORT}`);
+    console.log(`🚀 Listening on port ${PORT}`);
 });
