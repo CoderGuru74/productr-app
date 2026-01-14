@@ -8,25 +8,25 @@ const app = express();
 
 /**
  * 1. CORS CONFIGURATION
- * 'origin: true' allows connection from any device (phone/laptop).
+ * Vercel frontend se connection allow karne ke liye settings.
  */
 app.use(cors({
-  origin: true, 
+  origin: true, // Sabhi sources ko allow karta hai (Mobile/Laptop)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Payload limits for images (Base64)
+// Payload limits for images (Base64 data handling)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 /**
  * 2. HEALTH CHECK ROUTE
- * Deployment ke baad check karein: https://[your-app-name].onrender.com/health
+ * Test Link: https://productr-app.onrender.com/health
  */
 app.get('/health', (req, res) => {
-  res.status(200).send("OK");
+  res.status(200).send("Server is running perfectly! ✅");
 });
 
 // 3. MONGODB ATLAS CONNECTION
@@ -51,82 +51,102 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 
-// 5. OTP STORAGE (Temporary memory)
+// 5. OTP STORAGE (Temporary in-memory)
 let otpStore = {}; 
 
-// 6. NODEMAILER
+// 6. NODEMAILER TRANSPORTER
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    pass: process.env.EMAIL_PASS // Aapka 16-digit App Password
   }
 });
 
 // --- API ROUTES ---
 
+// OTP BHEJNA
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ success: false, error: "Email is required" });
 
   try {
     const otp = Math.floor(100000 + Math.random() * 900000);
-    otpStore[email.trim().toLowerCase()] = otp;
+    const normalizedEmail = email.trim().toLowerCase();
+    otpStore[normalizedEmail] = otp;
     
-    console.log(`📨 Sending OTP: ${otp} to ${email}`);
+    console.log(`📨 Requesting OTP for: ${normalizedEmail}`);
 
-    await transporter.sendMail({
+    const mailOptions = {
       from: `"Productr App" <${process.env.EMAIL_USER}>`,
-      to: email.trim().toLowerCase(),
-      subject: 'Login OTP Verification',
-      html: `<h3>Your code is: ${otp}</h3><p>Valid for a limited time.</p>`
-    });
+      to: normalizedEmail,
+      subject: 'Your Login OTP - Productr App',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee;">
+          <h2 style="color: #000066;">Productr Verification</h2>
+          <p>Your verification code is:</p>
+          <h1 style="color: #000066; font-size: 40px;">${otp}</h1>
+          <p>This code is valid for 10 minutes.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ OTP sent successfully to ${normalizedEmail}`);
     
-    res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
     console.error("❌ NODEMAILER ERROR:", error.message);
-    res.status(500).json({ success: false, error: "Failed to send email" });
+    return res.status(500).json({ success: false, error: "Failed to send email. Check App Password." });
   }
 });
 
+// OTP VERIFY KARNA
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ success: false, error: "Email and OTP required" });
+
   const userEmail = email.trim().toLowerCase();
   
   if (otpStore[userEmail] && String(otpStore[userEmail]) === String(otp)) {
-    delete otpStore[userEmail]; 
-    res.status(200).json({ success: true });
+    delete otpStore[userEmail]; // Ek baar use hone par delete kar dein
+    console.log(`✅ OTP Verified for ${userEmail}`);
+    return res.status(200).json({ success: true });
   } else {
-    res.status(400).json({ success: false, error: "Invalid OTP code" });
+    console.log(`❌ Invalid OTP attempt for ${userEmail}`);
+    return res.status(400).json({ success: false, error: "Invalid OTP code" });
   }
 });
 
-// Product API
+// PRODUCTS FETCH KARNA
 app.get('/products/:email', async (req, res) => {
   try {
     const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
-    res.status(200).json(products);
+    return res.status(200).json(products);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 });
 
+// NAYA PRODUCT ADD KARNA
 app.post('/products', async (req, res) => {
   try {
     const newProduct = new Product(req.body); 
     const savedProduct = await newProduct.save();
-    res.status(201).json(savedProduct);
+    return res.status(201).json(savedProduct);
   } catch (error) {
-    res.status(500).json({ error: "Failed to create product" });
+    return res.status(500).json({ error: "Failed to create product" });
   }
 });
 
 /**
- * 7. PORT BINDING FIX
- * Render process.env.PORT use karta hai. 
- * Localhost par ye automatically 5000 le lega.
+ * 7. SERVER INITIALIZATION
+ * Render dynamically assigns a port, else defaults to 5000.
  */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server Live on 0.0.0.0:${PORT}`);
+  console.log(`🚀 Server Live on Port: ${PORT}`);
 });

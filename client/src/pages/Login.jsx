@@ -6,19 +6,20 @@ import logo from '../assets/Frame 4.png';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']); 
-  const [step, setStep] = useState(1);  
+  const [step, setStep] = useState(1); 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');  
+  const [error, setError] = useState(''); 
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  // 🔥 YAHAN CHANGE HAI: Localhost ko hamesha ke liye hata diya gaya hai
+  // ✅ CONSTANT RENDER LINK (NO LOCALHOST)
   const API_BASE_URL = "https://productr-app.onrender.com";
 
+  // Auto-focus logic for the 6-digit OTP grid
   const handleOtpChange = (value, index) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
-    newOtp[index] = value.slice(-1); // Only take the last character
+    newOtp[index] = value.slice(-1); 
     setOtp(newOtp);
     setError(''); 
 
@@ -37,32 +38,38 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    
     try {
-      // ✅ Ab ye Render ka link use karega
+      console.log("Attempting to send OTP to:", email.trim());
       const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
+
+      const data = await response.json();
+
       if (response.ok) {
-        setStep(2);
+        setStep(2); // ✅ SUCCESS: Move to OTP input step
+        console.log("OTP Sent successfully");
       } else {
-        const data = await response.json();
-        setError(data.error || "Failed to send OTP");
+        setError(data.error || "Failed to send OTP. Please check your email.");
       }
     } catch (err) {
-      setError("Error connecting to server. Check: " + API_BASE_URL + "/health");
+      console.error("Frontend Fetch Error:", err);
+      setError("Server connection failed. Try checking " + API_BASE_URL + "/health");
     } finally {
-      setLoading(false);
+      setLoading(false); // ✅ STOP "Processing..." animation
     }
   };
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     const enteredOtp = otp.join('');
+    
     try {
-      // ✅ Ab ye Render ka link use karega
       const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,10 +82,10 @@ const Login = () => {
         localStorage.setItem('userEmail', email.trim());
         window.location.assign('/'); 
       } else {
-        setError(data.error || "Invalid OTP");
+        setError(data.error || "Invalid OTP code. Please try again.");
       }
     } catch (err) {
-      setError("Verification failed.");
+      setError("Verification failed. Check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -101,7 +108,7 @@ const Login = () => {
         {/* RIGHT SIDE: Form Section */}
         <div className="w-full md:w-1/2 flex flex-col items-center justify-center px-10 md:px-20 relative bg-white">
           <div className="w-full max-w-[460px]">
-            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 whitespace-nowrap text-left">
+            <h2 className="text-[28px] md:text-[32px] font-bold text-[#000066] mb-12 text-left">
               {step === 1 ? "Login to your Productr Account" : "Verify Your Email"}
             </h2>
             
@@ -155,7 +162,6 @@ const Login = () => {
               </button>
             </form>
 
-            {/* Bottom Section */}
             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-[380px] border border-gray-100 rounded-[20px] p-5 text-center bg-gray-50/40">
               <p className="text-gray-400 text-[13px] font-medium">
                 Don't have a Productr Account? <button type="button" className="text-[#000066] font-extrabold ml-1 hover:underline">SignUp Here</button>
