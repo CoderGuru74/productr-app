@@ -5,31 +5,30 @@ import Home from './pages/Home';
 import Products from './pages/Products';
 import Login from './pages/Login';
 
-/**
- * ProtectedRoute Component
- * This now checks localStorage every time the route is accessed.
- */
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('userEmail');
-  // If not logged in, send them to login page
   return isAuthenticated ? children : <Navigate to="/login-otp" replace />;
 };
 
 /**
- * LayoutWrapper Component
- * Handles the conditional rendering of the Sidebar based on current state.
+ * 🚀 FIXED LayoutWrapper
  */
 const LayoutWrapper = ({ children }) => {
   const location = useLocation();
   const isAuthenticated = !!localStorage.getItem('userEmail');
   const isLoginPage = location.pathname === '/login-otp';
+  const showSidebar = isAuthenticated && !isLoginPage;
 
   return (
-    <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden">
-      {/* Sidebar only shows if user is logged in AND not on login page */}
-      {isAuthenticated && !isLoginPage && <Sidebar />}
+    <div className="flex h-screen w-full bg-[#F8F9FB] overflow-hidden relative">
+      {/* Sidebar Component */}
+      {showSidebar && <Sidebar />}
       
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      {/* 🚩 FIX: md:ml-64 use kiya hai. 
+          Mobile par margin 0 rahega (ml-0), 
+          aur Desktop (md) par 64 units ka margin left se aayega.
+      */}
+      <div className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ${showSidebar ? 'ml-0 md:ml-64' : 'ml-0'}`}>
         {children}
       </div>
     </div>
@@ -41,10 +40,7 @@ function App() {
     <Router>
       <LayoutWrapper>
         <Routes>
-          {/* Public Route */}
           <Route path="/login-otp" element={<Login />} />
-          
-          {/* Protected Routes */}
           <Route 
             path="/" 
             element={
@@ -61,8 +57,6 @@ function App() {
               </ProtectedRoute>
             } 
           />
-
-          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </LayoutWrapper>
