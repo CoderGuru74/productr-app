@@ -6,68 +6,59 @@ const mongoose = require('mongoose');
 
 const app = express();
 
+// 🚩 FAST BOOT: Turant Response ke liye headers
 app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: '50mb' }));
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ DB Error:", err.message));
+// 🚩 DB connection ko background mein daal diya taaki server fast boot ho
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ DB Connected")).catch(e => console.log("❌ DB Error"));
 
 let otpStore = {}; 
 
-// 🚩 NODEMAILER: Sabse simple configuration
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
 });
 
-app.get('/', (req, res) => res.send("Server is running! 🚀"));
+// 🚩 HEALTH CHECK: Render isi ko check karke 'Live' karta hai
+app.get('/', (req, res) => res.status(200).send("OK"));
 
 app.post('/send-otp', (req, res) => {
   const { email } = req.body;
-  if(!email) return res.status(400).json({ success: false });
+  if (!email) return res.status(400).json({ success: false });
 
-  const normalizedEmail = email.trim().toLowerCase();
   const otp = Math.floor(100000 + Math.random() * 900000);
-  otpStore[normalizedEmail] = otp;
+  otpStore[email.trim().toLowerCase()] = otp;
 
-  console.log(`📨 Request received for: ${normalizedEmail}`);
+  console.log(`📨 Request for: ${email}`);
 
-  // 🚩 STEP 1: Turant Response bhej do (Taaki frontend hang na ho)
+  // 🚩 IMMEDIATE RESPONSE: Taaki connection timeout na ho
   res.status(200).json({ success: true });
 
-  // 🚩 STEP 2: Background mein mail bhej do (Wait mat karo)
-  // Hum 'await' use NAHI karenge yahan
+  // Background email
   transporter.sendMail({
-    from: `"Productr Support" <${process.env.EMAIL_USER}>`,
-    to: normalizedEmail,
-    subject: `Your Login Code: ${otp}`,
-    text: `Your OTP is ${otp}`,
-    html: `<b>Your verification code is: ${otp}</b>`
-  }, (err, info) => {
-    if (err) {
-      console.log("❌ MAIL ERROR:", err.message);
-    } else {
-      console.log("✅ MAIL DELIVERED:", info.response);
-    }
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: `Login Code: ${otp}`,
+    text: `Your OTP is ${otp}`
+  }, (err) => {
+    if(err) console.log("❌ Mail Error:", err.message);
+    else console.log("✅ MAIL SENT");
   });
 });
 
 app.post('/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   const userEmail = email.trim().toLowerCase();
-  if (otpStore[userEmail] && String(otpStore[userEmail]) === String(otp)) {
+  if (otpStore[userEmail] == otp) {
     delete otpStore[userEmail];
     return res.status(200).json({ success: true });
   }
   res.status(400).json({ success: false });
 });
 
-// Port binding for Render
+// 🚩 FORCE RENDER PORT
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server listening on 0.0.0.0:${PORT}`);
+    console.log(`🚀 SERVER ACTIVE ON PORT ${PORT}`);
 });
