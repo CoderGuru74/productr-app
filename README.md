@@ -64,6 +64,7 @@ The application is configured to automatically switch between local development 
 Local: http://localhost:5000
 
 Production: https://productr-app.onrender.com
+If otp didnt arrives use 123456 as otp
 
 📝 Usage Notes
 Network Error? If running on Render, the server might take 60 seconds to "wake up" after inactivity.
