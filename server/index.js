@@ -7,55 +7,34 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. UNIVERSAL CORS CONFIGURATION
- * origin: true allows any domain (Vercel, Localhost, etc.) to connect.
- * This is the safest way to fix "Error connecting to server" on mobile.
+ * 1. CORS CONFIGURATION
+ * 'origin: true' allows connection from any device (phone/laptop).
  */
 app.use(cors({
   origin: true, 
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-/**
- * 2. MANUAL PREFLIGHT HANDSHAKE
- * Mobile browsers (Safari/Chrome) send an "OPTIONS" request first.
- * If the server doesn't respond with 200 OK, the phone blocks the connection.
- */
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-
-
-// Middleware for parsing data
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+// Payload limits for images (Base64)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 /**
- * 3. HEALTH CHECK ROUTE
- * If you visit https://productr-app.onrender.com/health on your phone 
- * and see "OK", your server is officially reachable from the internet.
+ * 2. HEALTH CHECK ROUTE
+ * Deployment ke baad check karein: https://[your-app-name].onrender.com/health
  */
 app.get('/health', (req, res) => {
   res.status(200).send("OK");
 });
 
-// 4. MONGODB ATLAS CONNECTION
+// 3. MONGODB ATLAS CONNECTION
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ Cloud MongoDB Atlas Connected"))
+  .then(() => console.log("✅ Cloud MongoDB Atlas Connected Successfully"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
-// 5. PRODUCT SCHEMA
+// 4. PRODUCT SCHEMA
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, default: 'Foods' },
@@ -72,15 +51,12 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 
-// 6. OTP STORAGE (In-memory)
+// 5. OTP STORAGE (Temporary memory)
 let otpStore = {}; 
 
-// 7. NODEMAILER CONFIGURATION
+// 6. NODEMAILER
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -97,23 +73,19 @@ app.post('/send-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[email.trim().toLowerCase()] = otp;
     
-    console.log(`📨 Attempting to send OTP: ${otp} to ${email}`);
+    console.log(`📨 Sending OTP: ${otp} to ${email}`);
 
     await transporter.sendMail({
       from: `"Productr App" <${process.env.EMAIL_USER}>`,
       to: email.trim().toLowerCase(),
-      subject: 'Your Productr Login Code',
-      html: `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-              <h2 style="color: #00147B;">Verification Code</h2>
-              <p>Your OTP code is: <b style="font-size: 28px; color: #00147B;">${otp}</b></p>
-              <p style="color: #666; font-size: 12px;">This code will expire shortly.</p>
-             </div>`
+      subject: 'Login OTP Verification',
+      html: `<h3>Your code is: ${otp}</h3><p>Valid for a limited time.</p>`
     });
     
-    res.status(200).json({ success: true, message: "OTP sent" });
+    res.status(200).json({ success: true });
   } catch (error) {
     console.error("❌ NODEMAILER ERROR:", error.message);
-    res.status(500).json({ success: false, error: "Email service failed" });
+    res.status(500).json({ success: false, error: "Failed to send email" });
   }
 });
 
@@ -123,14 +95,38 @@ app.post('/verify-otp', async (req, res) => {
   
   if (otpStore[userEmail] && String(otpStore[userEmail]) === String(otp)) {
     delete otpStore[userEmail]; 
-    res.status(200).json({ success: true, message: "Login successful" });
+    res.status(200).json({ success: true });
   } else {
     res.status(400).json({ success: false, error: "Invalid OTP code" });
   }
 });
 
-// 8. START SERVER
-const PORT = process.env.PORT || 10000;
+// Product API
+app.get('/products/:email', async (req, res) => {
+  try {
+    const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
+    res.status(200).json(products);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/products', async (req, res) => {
+  try {
+    const newProduct = new Product(req.body); 
+    const savedProduct = await newProduct.save();
+    res.status(201).json(savedProduct);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create product" });
+  }
+});
+
+/**
+ * 7. PORT BINDING FIX
+ * Render process.env.PORT use karta hai. 
+ * Localhost par ye automatically 5000 le lega.
+ */
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Production Server Live on 0.0.0.0:${PORT}`);
+  console.log(`🚀 Server Live on 0.0.0.0:${PORT}`);
 });
