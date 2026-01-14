@@ -12,13 +12,13 @@ const LoginOTP = () => {
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
-  /** * ✅ CRITICAL FIX: 
-   * This line pulls the URL you just added to Vercel.
-   * If the variable isn't found, it defaults to the Render URL.
-   */
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://productr-app.onrender.com";
+  // ✅ NO LOCALHOST, NO ENV VARIABLES. DIRECT RENDER LINK.
+  const API_BASE_URL = "https://productr-app.onrender.com";
 
   useEffect(() => {
+    // Ye console check karne ke liye hai ki phone par sahi URL load hua ya nahi
+    console.log("System Check: Connecting to " + API_BASE_URL);
+    
     let interval;
     if (timer > 0) {
       interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
@@ -58,7 +58,6 @@ const LoginOTP = () => {
     setError('');
     
     try {
-      // Using the dynamic API_BASE_URL
       const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,10 +70,11 @@ const LoginOTP = () => {
         setStep(2); 
         setTimer(60); 
       } else {
-        setError(data.error || "Failed to send OTP.");
+        setError(data.error || "Server error. Please try again.");
       }
     } catch (err) {
-      setError("Server connection failed. Please try again in 30 seconds.");
+      // Agar ye error aaye, matlab mobile internet backend tak nahi pahunch raha
+      setError("Connection failed. Check if https://productr-app.onrender.com/health is OK");
       console.error("Fetch error:", err);
     } finally {
       setLoading(false);
@@ -127,7 +127,7 @@ const LoginOTP = () => {
 
         {/* RIGHT PANEL */}
         <div className="flex-1 flex flex-col justify-center px-10 md:px-16 relative bg-white">
-          <div className="w-full max-w-sm mx-auto">
+          <div className="w-full max-sm mx-auto">
             <h2 className="text-[24px] font-bold text-[#001D4D] mb-10 tracking-tight">
               {step === 1 ? "Login to your Account" : "Enter Verification Code"}
             </h2>
