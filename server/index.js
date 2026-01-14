@@ -7,10 +7,11 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. BULLETPROOF CORS & PAYLOAD
+ * 1. CORS & PAYLOAD CONFIG
+ * 'origin: "*"' ensures your Vercel frontend can always connect.
  */
 app.use(cors({
-  origin: "*", // Sabhi origins allow kar diye taaki Vercel block na ho
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
@@ -23,11 +24,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
  */
 const mongoURI = process.env.MONGO_URI;
 mongoose.connect(mongoURI)
-  .then(() => console.log("✅ Cloud MongoDB Atlas Connected"))
-  .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
+  .then(() => console.log("✅ MongoDB Atlas Connected"))
+  .catch(err => console.error("❌ MongoDB Error:", err.message));
 
 /**
- * 3. SCHEMAS
+ * 3. PRODUCT SCHEMA
  */
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -47,18 +48,20 @@ const Product = mongoose.model('Product', productSchema);
 let otpStore = {}; 
 
 /**
- * 4. NODEMAILER CONFIG (Render Optimized)
+ * 4. NODEMAILER CONFIGURATION (The "Render Fix")
+ * Using Port 587 with STARTTLS is the most reliable way on Render.
  */
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587, // Render ke liye 587 best hai
-  secure: false, 
+  port: 587,
+  secure: false, // Must be false for port 587
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
   tls: {
-    rejectUnauthorized: false // Connection drop hone se bachayega
+    rejectUnauthorized: false, // Prevents connection drops
+    minVersion: "TLSv1.2"
   }
 });
 
@@ -66,82 +69,43 @@ const transporter = nodemailer.createTransport({
  * 5. API ROUTES
  */
 
-// Health Check (Zaroori hai Render ke liye)
-app.get('/', (req, res) => res.send("Server is Live 🚀"));
+// Health Check
+app.get('/', (req, res) => res.send("Productr Backend is Running... 🚀"));
 
-// Create Product
-app.post('/products', async (req, res) => {
-  try {
-    const newProduct = new Product(req.body); 
-    const savedProduct = await newProduct.save();
-    res.status(201).json(savedProduct);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to create product" });
-  }
-});
-
-// Fetch Products
-app.get('/products/:email', async (req, res) => {
-  try {
-    const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
-    res.status(200).json(products);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update Product
-app.put('/products/:id', async (req, res) => {
-  try {
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.status(200).json(updatedProduct);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to update product" });
-  }
-});
-
-// Toggle Status (PATCH)
-app.patch('/products/:id/status', async (req, res) => {
-  try {
-    const { status } = req.body;
-    const updated = await Product.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    res.status(200).json(updated);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete Product
-app.delete('/products/:id', async (req, res) => {
-  try {
-    await Product.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: "Product deleted" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Send OTP
+// Send OTP Route
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
-  if(!email) return res.status(400).json({ error: "Email required" });
+  if(!email) return res.status(400).json({ error: "Email is required" });
   
   try {
     const otp = Math.floor(100000 + Math.random() * 900000);
-    otpStore[email.trim().toLowerCase()] = otp;
+    const normalizedEmail = email.trim().toLowerCase();
+    otpStore[normalizedEmail] = otp;
     
-    console.log(`📨 Sending OTP to ${email}`);
+    console.log(`📨 Attempting to send OTP to: ${normalizedEmail}`);
 
-    await transporter.sendMail({
+    const mailOptions = {
       from: `"Productr Support" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Productr OTP Code',
-      html: `<h3>Your login code is: <b>${otp}</b></h3>`
-    });
-    res.status(200).json({ message: "OTP sent" });
+      to: normalizedEmail,
+      subject: 'Your Productr Verification Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #000066;">Verification Code</h2>
+          <p>Your login code is:</p>
+          <h1 style="color: #000066; font-size: 40px; letter-spacing: 5px;">${otp}</h1>
+          <p>This code will expire in 10 minutes.</p>
+        </div>
+      `
+    };
+
+    // We MUST await this so the function doesn't terminate early
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ Email Sent Successfully:", info.response);
+    
+    res.status(200).json({ message: "OTP sent successfully" });
   } catch (error) {
-    console.error("❌ Email Error:", error.message);
-    res.status(500).json({ error: "Failed to send OTP", details: error.message });
+    console.error("❌ Nodemailer Error:", error.message);
+    res.status(500).json({ error: "Failed to send email", details: error.message });
   }
 });
 
@@ -154,9 +118,46 @@ app.post('/verify-otp', async (req, res) => {
     delete otpStore[userEmail]; 
     res.status(200).json({ message: "Login successful" });
   } else {
-    res.status(400).json({ error: "Please enter a valid OTP" });
+    res.status(400).json({ error: "Invalid OTP code" });
   }
 });
 
+// Product Routes (CRUD)
+app.post('/products', async (req, res) => {
+  try {
+    const newProduct = new Product(req.body); 
+    const savedProduct = await newProduct.save();
+    res.status(201).json(savedProduct);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/products/:email', async (req, res) => {
+  try {
+    const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
+    res.status(200).json(products);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/products/:id', async (req, res) => {
+  try {
+    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.status(200).json(updated);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.patch('/products/:id/status', async (req, res) => {
+  try {
+    const updated = await Product.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    res.status(200).json(updated);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.delete('/products/:id', async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Deleted" });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
