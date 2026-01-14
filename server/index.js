@@ -7,7 +7,8 @@ const mongoose = require('mongoose');
 const app = express();
 
 /**
- * 1. CORS FIX
+ * 1. BULLETPROOF CORS
+ * Is baar hum origin ko explicitly allow kar rahe hain.
  */
 app.use(cors({
   origin: ["https://productr-app.vercel.app", "http://localhost:5173"],
@@ -31,7 +32,7 @@ mongoose.connect(process.env.MONGO_URI)
 let otpStore = {}; 
 
 /**
- * 4. SEND OTP ROUTE (Fixed for Timeout)
+ * 4. SEND OTP ROUTE (Optimized for Render)
  */
 app.post('/send-otp', async (req, res) => {
   const { email } = req.body;
@@ -44,45 +45,36 @@ app.post('/send-otp', async (req, res) => {
   console.log(`📨 Attempting to send OTP to: ${normalizedEmail}`);
 
   try {
-    /**
-     * 🚩 PORT 587 FIX
-     * Render ke liye Port 587 + secure: false hi sabse best hai.
-     */
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
-      secure: false, // Port 587 ke liye false hona chahiye
+      secure: false, // 587 uses STARTTLS
       auth: {
         user: 'pixelnodeofficial@gmail.com',
         pass: 'wnux dvib bgsw rllg' 
       },
       tls: {
-        // Isse connection fail nahi hoga agar SSL handshake slow ho
         rejectUnauthorized: false
       }
     });
 
-    // Pehle verify karo ki connection ban raha hai
-    await transporter.verify();
-    console.log("✅ Transporter is ready to take our messages");
-
-    const mailOptions = {
+    // Directly send without separate verify() to avoid timeout
+    await transporter.sendMail({
       from: '"Productr App" <pixelnodeofficial@gmail.com>',
       to: normalizedEmail,
       subject: 'Login OTP Verification',
       text: `Your OTP is: ${otp}`
-    };
-
-    await transporter.sendMail(mailOptions);
+    });
     
     console.log(`✅ Success: OTP sent to ${normalizedEmail}`);
     return res.status(200).json({ success: true });
 
   } catch (error) {
     console.error("❌ NODEMAILER ERROR:", error.message);
+    // Connection timeout se bachne ke liye jaldi response bhejna
     return res.status(500).json({ 
       success: false, 
-      error: "Connection timeout", 
+      error: "Could not send email", 
       details: error.message 
     });
   }
@@ -102,20 +94,13 @@ app.post('/verify-otp', (req, res) => {
   return res.status(400).json({ success: false, error: "Invalid OTP" });
 });
 
-// 6. PRODUCT SCHEMA & ROUTES
+// 6. PRODUCT SCHEMA (Minimal for Testing)
 const productSchema = new mongoose.Schema({
     name: String,
     userEmail: String,
     createdAt: { type: Date, default: Date.now }
 });
 const Product = mongoose.model('Product', productSchema);
-
-app.get('/products/:email', async (req, res) => {
-  try {
-    const products = await Product.find({ userEmail: req.params.email }).sort({ createdAt: -1 });
-    res.json(products);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
