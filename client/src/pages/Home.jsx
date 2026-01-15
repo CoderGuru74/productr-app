@@ -8,13 +8,18 @@ const Home = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
+  // 🚩 DYNAMIC URL LOGIC: Fix for deployment
+  const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://productr-app.onrender.com';
+
   // 1. DYNAMIC EMAIL RETRIEVAL
   const userEmail = localStorage.getItem('userEmail') || "pixelnodeofficial@gmail.com";
 
   const fetchProducts = async () => {
     try {
-      // 2. Fetch products for specific user
-      const response = await fetch(`http://localhost:5000/products/${userEmail}`);
+      // 2. Using dynamic API_BASE_URL
+      const response = await fetch(`${API_BASE_URL}/products/${userEmail}`);
       const data = await response.json();
       // Ensure data is always an array
       setProducts(Array.isArray(data) ? data : []);
@@ -30,7 +35,8 @@ const Home = () => {
   const togglePublishStatus = async (product) => {
     const newStatus = product.status === 'Published' ? 'Unpublished' : 'Published';
     try {
-      const response = await fetch(`http://localhost:5000/products/${product._id}/status`, {
+      // 2. Using dynamic API_BASE_URL
+      const response = await fetch(`${API_BASE_URL}/products/${product._id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),

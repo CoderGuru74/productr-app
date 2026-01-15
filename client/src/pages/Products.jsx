@@ -21,12 +21,18 @@ const Products = () => {
     name: '', category: 'Foods', quantityStock: '', mrp: '', sellingPrice: '', brandName: '', isReturnable: 'Yes', images: []
   });
 
+  // 🚩 DYNAMIC URL LOGIC: Fix for deployment
+  const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://productr-app.onrender.com';
+
   const userEmail = localStorage.getItem('userEmail'); 
 
   const fetchProducts = async () => {
     if (!userEmail) return; 
     try {
-      const response = await fetch(`http://localhost:5000/products/${userEmail}`);
+      // Using API_BASE_URL instead of fixed localhost
+      const response = await fetch(`${API_BASE_URL}/products/${userEmail}`);
       const data = await response.json();
       setProducts(data);
     } catch (err) { 
@@ -60,7 +66,7 @@ const Products = () => {
   const togglePublishStatus = async (product) => {
     const newStatus = product.status === 'Published' ? 'Unpublished' : 'Published';
     try {
-      const response = await fetch(`http://localhost:5000/products/${product._id}/status`, {
+      const response = await fetch(`${API_BASE_URL}/products/${product._id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -68,7 +74,7 @@ const Products = () => {
       if (response.ok) {
         setToastMsg(`Status updated to ${newStatus}`);
         setShowToast(true);
-        fetchProducts(); // Refreshes the grid
+        fetchProducts(); 
         setTimeout(() => setShowToast(false), 3000);
       }
     } catch (err) { alert("Update failed"); }
@@ -78,10 +84,10 @@ const Products = () => {
   const handleDeleteProduct = async () => {
     if (!productToDelete) return;
     try {
-      const response = await fetch(`http://localhost:5000/products/${productToDelete._id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/products/${productToDelete._id}`, { method: 'DELETE' });
       if (response.ok) {
         setShowDeleteModal(false);
-        fetchProducts(); // Refreshes the grid
+        fetchProducts(); 
         setToastMsg('Product deleted Successfully');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
@@ -91,20 +97,18 @@ const Products = () => {
 
   // 🚩 FIXED: SAVE OR UPDATE LOGIC
   const handleSaveOrUpdate = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!validateForm()) return;
     setLoading(true);
 
-    const url = editingProduct ? `http://localhost:5000/products/${editingProduct._id}` : 'http://localhost:5000/products';
+    const url = editingProduct ? `${API_BASE_URL}/products/${editingProduct._id}` : `${API_BASE_URL}/products`;
     const method = editingProduct ? 'PUT' : 'POST';
 
-    // Formatting numbers to prevent server rejection
     const payload = {
       ...form,
       userEmail,
       mrp: Number(form.mrp),
       sellingPrice: Number(form.sellingPrice),
-      // Ensure new products are Unpublished by default
       status: editingProduct ? (form.status || 'Unpublished') : 'Unpublished'
     };
 
@@ -116,7 +120,7 @@ const Products = () => {
       });
       if (response.ok) {
         setShowModal(false);
-        fetchProducts(); // Refreshes the grid
+        fetchProducts(); 
         setToastMsg(editingProduct ? 'Product updated Successfully' : 'Product added Successfully');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
@@ -298,7 +302,6 @@ const Products = () => {
               <div className="flex flex-col"><label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Exchange Eligibility</label><select value={form.isReturnable} onChange={(e)=>setForm({...form, isReturnable: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none"><option value="Yes">Yes</option><option value="No">No</option></select></div>
             </form>
             <div className="p-4 border-t bg-slate-50 flex justify-end">
-              {/* Linked button to trigger handleSaveOrUpdate via form submission logic */}
               <button onClick={handleSaveOrUpdate} className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
                 {editingProduct ? 'Update' : 'Create'}
               </button>
