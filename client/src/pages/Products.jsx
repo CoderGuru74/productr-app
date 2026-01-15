@@ -152,14 +152,16 @@ const Products = () => {
         img.src = event.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; 
+          // 🚩 SUPER COMPRESSION FOR RENDER (Reduced from 800 to 500)
+          const MAX_WIDTH = 500; 
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // 🚩 FIX: Lower quality (0.4) for smaller Base64 strings to avoid 500 errors
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.4);
+          
+          // Quality reduced to 0.3 for light payloads
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.3);
           setForm(prev => ({ ...prev, images: [...prev.images, compressedBase64] }));
           if (errors.images) setErrors(prev => ({ ...prev, images: null }));
         };
@@ -300,7 +302,6 @@ const Products = () => {
                 {errors.images && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.images}</span>}
               </div>
               <div className="flex flex-col"><label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Exchange Eligibility</label><select value={form.isReturnable} onChange={(e)=>setForm({...form, isReturnable: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none"><option value="Yes">Yes</option><option value="No">No</option></select></div>
-              {/* Submission Button inside the form to trigger logic */}
               <div className="pt-4 flex justify-end">
                 <button type="submit" className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
                   {editingProduct ? 'Update' : 'Create'}
