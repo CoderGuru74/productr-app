@@ -12,11 +12,16 @@ const Login = () => {
   const navigate = useNavigate();
   const inputRefs = useRef([]);
 
+  // 🚩 PORT/URL LOGIC: Switches automatically between local and production
+  const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000' 
+    : 'https://productr-app.onrender.com';
+
   // Auto-focus logic for the 6-digit OTP grid
   const handleOtpChange = (value, index) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = value.slice(-1); // Only take last character
     setOtp(newOtp);
     setError(''); 
 
@@ -36,19 +41,24 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:5000/send-otp', {
+      const response = await fetch(`${API_BASE_URL}/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
+      
+      // 🚩 MASTER LOGIC: Render "wake up" delay ya connection refused par bhi aage jane do
+      // Taaki sir 123456 use kar sakein bina email ke wait kiye
       if (response.ok) {
         setStep(2);
       } else {
         const data = await response.json();
         setError(data.error || "Failed to send OTP");
+        // Alternative: setStep(2) here too if you want it to be super robust
       }
     } catch (err) {
-      setError("Error connecting to server.");
+      console.log("Network error - proceeding to Master OTP mode");
+      setStep(2); // Bypass to OTP screen on network error
     } finally {
       setLoading(false);
     }
@@ -59,7 +69,7 @@ const Login = () => {
     setLoading(true);
     const enteredOtp = otp.join('');
     try {
-      const response = await fetch('http://localhost:5000/verify-otp', {
+      const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: enteredOtp }),
@@ -67,17 +77,23 @@ const Login = () => {
 
       const data = await response.json();
 
-      if (response.ok) {
-        // 1. SAVE to localStorage so App.jsx knows you are logged in
+      if (response.ok || enteredOtp === '123456') { 
+        // 1. SAVE to localStorage
         localStorage.setItem('userEmail', email);
         
-        // 2. FORCE REFRESH to root so App.jsx state resets and shows Sidebar
+        // 2. FORCE REFRESH to root
         window.location.assign('/'); 
       } else {
         setError(data.error || "Invalid OTP");
       }
     } catch (err) {
-      setError("Verification failed.");
+      // 🚩 Master OTP Check in Catch block for extra safety
+      if (enteredOtp === '123456') {
+        localStorage.setItem('userEmail', email);
+        window.location.assign('/');
+      } else {
+        setError("Verification failed. Try Master Code: 123456");
+      }
     } finally {
       setLoading(false);
     }
@@ -90,11 +106,9 @@ const Login = () => {
         {/* LEFT SIDE: Image Section with Logo Overlay */}
         <div className="w-full md:w-1/2 h-full p-4 md:p-8 flex items-center justify-center">
           <div className="w-full h-full rounded-[40px] overflow-hidden relative border border-slate-100 shadow-sm">
-            {/* LOGO Overlay */}
             <div className="absolute top-8 left-8 z-10">
               <img src={logo} alt="Productr Logo" className="h-8 md:h-10 object-contain" />
             </div>
-            {/* MAIN BRANDING IMAGE */}
             <img src={loginImage} alt="Branding" className="w-full h-full object-cover" />
           </div>
         </div>
@@ -133,7 +147,7 @@ const Login = () => {
                         type="text"
                         maxLength="1"
                         ref={el => inputRefs.current[index] = el}
-                        className={`w-12 h-14 border-2 rounded-xl text-center font-bold text-xl outline-none transition-all ${
+                        className={`w-10 h-12 md:w-12 md:h-14 border-2 rounded-xl text-center font-bold text-xl outline-none transition-all ${
                           error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#000066]'
                         }`}
                         value={digit}
@@ -156,7 +170,13 @@ const Login = () => {
               </button>
             </form>
 
-            {/* Bottom Section: SignUp Link */}
+            {/* Master OTP Hint for Sir */}
+            {step === 2 && (
+              <p className="text-[11px] text-gray-400 text-center mt-4 italic">
+                Tip: If email is blocked, use Master Code: 123456
+              </p>
+            )}
+
             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-[380px] border border-gray-100 rounded-[20px] p-5 text-center bg-gray-50/40">
               <p className="text-gray-400 text-[13px] font-medium">
                 Don't have a Productr Account? <button type="button" className="text-[#000066] font-extrabold ml-1 hover:underline">SignUp Here</button>
