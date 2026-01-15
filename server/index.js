@@ -6,11 +6,12 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-// Middleware - FIXED LIMITS FOR DEPLOYMENT
+// Middleware - FIXED LIMITS FOR DEPLOYMENT (Updated for Render stability)
 app.use(cors({ origin: "*" }));
-// Base64 images ke liye limit 100mb kar di hai aur urlencoded parser bhi add kiya hai
-app.use(express.json({ limit: '100mb' })); 
-app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Render par Base64 images handle karne ke liye limits badhai hain
+app.use(express.json({ limit: '200mb' })); 
+app.use(express.urlencoded({ limit: '200mb', extended: true, parameterLimit: 1000000 }));
 
 // 1. DATABASE CONNECTION
 mongoose.connect(process.env.MONGO_URI)
@@ -147,4 +148,5 @@ app.delete('/products/:id', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 Local: http://localhost:${PORT}`);
 });
