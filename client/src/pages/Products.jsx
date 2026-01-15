@@ -34,7 +34,7 @@ const Products = () => {
       // Using API_BASE_URL instead of fixed localhost
       const response = await fetch(`${API_BASE_URL}/products/${userEmail}`);
       const data = await response.json();
-      setProducts(data);
+      setProducts(Array.isArray(data) ? data : []);
     } catch (err) { 
       console.error("Fetch error:", err); 
     }
@@ -62,7 +62,6 @@ const Products = () => {
     (p.brandName && p.brandName.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // 🚩 FIXED: TOGGLE PUBLISH LOGIC
   const togglePublishStatus = async (product) => {
     const newStatus = product.status === 'Published' ? 'Unpublished' : 'Published';
     try {
@@ -80,7 +79,6 @@ const Products = () => {
     } catch (err) { alert("Update failed"); }
   };
 
-  // 🚩 FIXED: DELETE LOGIC
   const handleDeleteProduct = async () => {
     if (!productToDelete) return;
     try {
@@ -95,7 +93,6 @@ const Products = () => {
     } catch (err) { alert("Delete failed"); }
   };
 
-  // 🚩 FIXED: SAVE OR UPDATE LOGIC
   const handleSaveOrUpdate = async (e) => {
     if (e) e.preventDefault();
     if (!validateForm()) return;
@@ -124,6 +121,8 @@ const Products = () => {
         setToastMsg(editingProduct ? 'Product updated Successfully' : 'Product added Successfully');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
+      } else {
+        alert("Server rejected the request. Checking logs...");
       }
     } catch (err) { alert("Error saving"); }
     finally { setLoading(false); }
@@ -159,7 +158,8 @@ const Products = () => {
           canvas.height = img.height * scaleSize;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          // 🚩 FIX: Lower quality (0.4) for smaller Base64 strings to avoid 500 errors
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.4);
           setForm(prev => ({ ...prev, images: [...prev.images, compressedBase64] }));
           if (errors.images) setErrors(prev => ({ ...prev, images: null }));
         };
@@ -300,12 +300,13 @@ const Products = () => {
                 {errors.images && <span className="text-red-500 text-[10px] mt-1 font-bold">{errors.images}</span>}
               </div>
               <div className="flex flex-col"><label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Exchange Eligibility</label><select value={form.isReturnable} onChange={(e)=>setForm({...form, isReturnable: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none"><option value="Yes">Yes</option><option value="No">No</option></select></div>
+              {/* Submission Button inside the form to trigger logic */}
+              <div className="pt-4 flex justify-end">
+                <button type="submit" className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
+                  {editingProduct ? 'Update' : 'Create'}
+                </button>
+              </div>
             </form>
-            <div className="p-4 border-t bg-slate-50 flex justify-end">
-              <button onClick={handleSaveOrUpdate} className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
-                {editingProduct ? 'Update' : 'Create'}
-              </button>
-            </div>
           </div>
         </div>
       )}
