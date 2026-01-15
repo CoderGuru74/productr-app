@@ -68,3 +68,9 @@ If otp didnt arrives use 123456 as otp
 
 📝 Usage Notes
 Network Error? If running on Render, the server might take 60 seconds to "wake up" after inactivity.
+🛠️ Commands to Run
+- Backend: `node --max-http-header-size=100000000 index.js`
+- Frontend: `npm run dev`
+
+ 🔑 Master Access
+- Test OTP: `123456` (Works for all email addresses)
