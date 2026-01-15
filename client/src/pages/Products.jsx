@@ -21,16 +21,11 @@ const Products = () => {
     name: '', category: 'Foods', quantityStock: '', mrp: '', sellingPrice: '', brandName: '', isReturnable: 'Yes', images: []
   });
 
-  // 1. DYNAMIC EMAIL RETRIEVAL
-  // We pull the email saved during the OTP login process from localStorage
   const userEmail = localStorage.getItem('userEmail'); 
 
   const fetchProducts = async () => {
-    // Only fetch if a user is logged in
     if (!userEmail) return; 
-
     try {
-      // 2. FILTERED FETCH: Requesting products specific to this email
       const response = await fetch(`http://localhost:5000/products/${userEmail}`);
       const data = await response.json();
       setProducts(data);
@@ -41,7 +36,7 @@ const Products = () => {
 
   useEffect(() => { 
     fetchProducts(); 
-  }, [userEmail]); // Refetch if the user changes
+  }, [userEmail]);
 
   const validateForm = () => {
     let tempErrors = {};
@@ -58,9 +53,10 @@ const Products = () => {
 
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.brandName.toLowerCase().includes(searchQuery.toLowerCase())
+    (p.brandName && p.brandName.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  // 🚩 FIXED: TOGGLE PUBLISH LOGIC
   const togglePublishStatus = async (product) => {
     const newStatus = product.status === 'Published' ? 'Unpublished' : 'Published';
     try {
@@ -72,18 +68,20 @@ const Products = () => {
       if (response.ok) {
         setToastMsg(`Status updated to ${newStatus}`);
         setShowToast(true);
-        fetchProducts(); 
+        fetchProducts(); // Refreshes the grid
         setTimeout(() => setShowToast(false), 3000);
       }
     } catch (err) { alert("Update failed"); }
   };
 
+  // 🚩 FIXED: DELETE LOGIC
   const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
     try {
       const response = await fetch(`http://localhost:5000/products/${productToDelete._id}`, { method: 'DELETE' });
       if (response.ok) {
         setShowDeleteModal(false);
-        fetchProducts();
+        fetchProducts(); // Refreshes the grid
         setToastMsg('Product deleted Successfully');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
@@ -91,22 +89,34 @@ const Products = () => {
     } catch (err) { alert("Delete failed"); }
   };
 
+  // 🚩 FIXED: SAVE OR UPDATE LOGIC
   const handleSaveOrUpdate = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
     setLoading(true);
+
     const url = editingProduct ? `http://localhost:5000/products/${editingProduct._id}` : 'http://localhost:5000/products';
     const method = editingProduct ? 'PUT' : 'POST';
+
+    // Formatting numbers to prevent server rejection
+    const payload = {
+      ...form,
+      userEmail,
+      mrp: Number(form.mrp),
+      sellingPrice: Number(form.sellingPrice),
+      // Ensure new products are Unpublished by default
+      status: editingProduct ? (form.status || 'Unpublished') : 'Unpublished'
+    };
+
     try {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        // 3. SECURE SAVE: Explicitly sending the current userEmail with the product
-        body: JSON.stringify({ ...form, userEmail }),
+        body: JSON.stringify(payload),
       });
       if (response.ok) {
         setShowModal(false);
-        fetchProducts();
+        fetchProducts(); // Refreshes the grid
         setToastMsg(editingProduct ? 'Product updated Successfully' : 'Product added Successfully');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
@@ -288,6 +298,7 @@ const Products = () => {
               <div className="flex flex-col"><label className="text-[11px] font-bold text-slate-500 mb-1 block uppercase">Exchange Eligibility</label><select value={form.isReturnable} onChange={(e)=>setForm({...form, isReturnable: e.target.value})} className="w-full p-2.5 rounded-md border border-slate-200 text-sm bg-white outline-none"><option value="Yes">Yes</option><option value="No">No</option></select></div>
             </form>
             <div className="p-4 border-t bg-slate-50 flex justify-end">
+              {/* Linked button to trigger handleSaveOrUpdate via form submission logic */}
               <button onClick={handleSaveOrUpdate} className="bg-[#1D35D9] text-white px-10 py-2.5 rounded-md font-bold text-xs shadow-md active:scale-95 transition-all">
                 {editingProduct ? 'Update' : 'Create'}
               </button>
